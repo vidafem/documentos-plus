@@ -1,6 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { jsPDF } from "jspdf";
+import html2canvas from "html2canvas";
+import JSZip from "jszip";
 import * as XLSX from "xlsx-js-style";
 import { supabase } from "@/lib/supabaseClient";
 import Notification from "./Notification";
@@ -215,6 +218,52 @@ const getMonthDateRange = (year: string, month: string): { start: string; end: s
   return { start: formatDateIso(startDate), end: formatDateIso(endDate), nextMonthStart: formatDateIso(nextMonthDate) };
 };
 
+const sanitizeFileName = (value: string): string => value.replace(/[\\/:*?"<>|]/g, "_").replace(/\s+/g, " ").trim();
+
+const encodeHtml = (value: string): string =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const replaceTemplateTokens = (template: string, values: Record<string, string>): string => {
+  let html = template;
+
+  html = html.replace(/\{\{\s*DESCRIPCION\s*\}\}/g, encodeHtml(values.descripcion));
+  html = html.replace(/\{\{\s*N(?:°|&deg;)\s*DE\s*EXPEDIENTE\s*\}\}/g, encodeHtml(values.expediente));
+  html = html.replace(/\{\{\s*APERTURA\s*\}\}/g, encodeHtml(values.apertura));
+  html = html.replace(/\{\{\s*CIERRE\s*\}\}/g, encodeHtml(values.cierre));
+  html = html.replace(/\{\{\s*N(?:°|&deg;)\s*FOJAS\s*\}\}/g, encodeHtml(values.fojas));
+  html = html.replace(/\{\{\s*N(?:°|&deg;)\s*DE\s*TOMO\s*\}\}/g, encodeHtml(values.tomo));
+
+  return html;
+};
+
+const downloadBlob = (blob: Blob, fileName: string): void => {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = fileName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+};
+
+const getExpedienteFromRow = (row: GenericRow): string =>
+  toText(readFirstValue(row, ["N°_DE_EXPEDIENTE", "N_DE_EXPEDIENTE", "EXPEDIENTE", "expediente"]));
+
+const getCierreFromRow = (row: GenericRow): string =>
+  toText(readFirstValue(row, ["CIERRE", "FECHA_CIERRE", "fecha_cierre"]));
+
+const getPdfNameBase = (row: GenericRow): string => {
+  const expediente = getExpedienteFromRow(row) || "SIN_EXPEDIENTE";
+  const cierre = getCierreFromRow(row) || "SIN_CIERRE";
+  return sanitizeFileName(`${expediente}_${cierre}`);
+};
+
 export const syncArchDeleFromFlagranciaGlobal = async (): Promise<{
   dedupedCount: number;
   skippedDuplicates: number;
@@ -357,6 +406,134 @@ export default function ArchivoDelegacionesModule() {
 
   const [fechaInicioTotal, setFechaInicioTotal] = useState("");
   const [fechaFinTotal, setFechaFinTotal] = useState("");
+  const [pdfTemplate, setPdfTemplate] = useState("");
+  const [pdfRowBusyKey, setPdfRowBusyKey] = useState("");
+  const [pdfAllLoading, setPdfAllLoading] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadTemplate = async () => {
+      try {
+        const response = await fetch("/formatos/formato_delegaciones.html", { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        const html = await response.text();
+        if (active) {
+          setPdfTemplate(html);
+        }
+      } catch (error) {
+        if (active) {
+          const msg = error instanceof Error ? error.message : "Error desconocido";
+          setNotification({ message: `No se pudo cargar formato_delegaciones.html: ${msg}`, type: "error" });
+        }
+      }
+    };
+
+    void loadTemplate();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const createPdfBlobForRow = async (row: GenericRow): Promise<Blob> => {
+    if (!pdfTemplate) {
+      throw new Error("La plantilla HTML aún no se cargó.");
+    }
+
+    const templateFilled = replaceTemplateTokens(pdfTemplate, {
+      descripcion: toText(readFirstValue(row, ["DESCRIPCIÓN", "DESCRIPCION", "descripcion"])),
+      expediente: getExpedienteFromRow(row),
+      apertura: toText(readFirstValue(row, ["APERTURA", "FECHA_APERTURA", "fecha_apertura"])),
+      cierre: getCierreFromRow(row),
+      fojas: toText(readFirstValue(row, ["N°FOJAS", "N_FOJAS", "n_fojas"])),
+      tomo: toText(readFirstValue(row, ["N°_DE_TOMO", "N_DE_TOMO", "N_TOMO", "n_tomo"])),
+    });
+
+    const container = document.createElement("div");
+    container.style.position = "fixed";
+    container.style.left = "-100000px";
+    container.style.top = "0";
+    container.style.width = "1123px";
+    container.style.background = "#ffffff";
+    container.style.padding = "12px";
+    container.style.boxSizing = "border-box";
+    container.innerHTML = templateFilled;
+
+    document.body.appendChild(container);
+
+    const canvas = await html2canvas(container, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: "#ffffff",
+      logging: false,
+    });
+
+    document.body.removeChild(container);
+
+    const pdf = new jsPDF({
+      orientation: "landscape",
+      unit: "mm",
+      format: "a4",
+    });
+
+    const imgData = canvas.toDataURL("image/png");
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    pdf.addImage(imgData, "PNG", 0, 0, pageWidth, pageHeight, undefined, "FAST");
+
+    return pdf.output("blob");
+  };
+
+  const descargarFilaPdf = async (row: GenericRow) => {
+    const rowKey = `${getPdfNameBase(row)}_${Math.random().toString(36).slice(2, 8)}`;
+    setPdfRowBusyKey(rowKey);
+
+    try {
+      const blob = await createPdfBlobForRow(row);
+      downloadBlob(blob, `${getPdfNameBase(row)}.pdf`);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Error desconocido";
+      setNotification({ message: `No se pudo generar PDF: ${msg}`, type: "error" });
+    } finally {
+      setPdfRowBusyKey("");
+    }
+  };
+
+  const descargarTodosPdfZip = async () => {
+    if (!filtroAplicadoTotal || registrosTotal.length === 0) {
+      setNotification({ message: "Primero filtra Archivo total para generar PDFs.", type: "info" });
+      return;
+    }
+
+    if (!pdfTemplate) {
+      setNotification({ message: "Aún no se cargó la plantilla de formato para PDF.", type: "error" });
+      return;
+    }
+
+    setPdfAllLoading(true);
+    try {
+      const zip = new JSZip();
+      for (let i = 0; i < registrosTotal.length; i += 1) {
+        const row = registrosTotal[i];
+        const blob = await createPdfBlobForRow(row);
+        const base = getPdfNameBase(row) || `registro_${i + 1}`;
+        zip.file(`${String(i + 1).padStart(3, "0")}_${base}.pdf`, blob);
+      }
+
+      const zipBlob = await zip.generateAsync({ type: "blob" });
+      const stamp = new Date().toISOString().slice(0, 10);
+      downloadBlob(zipBlob, `ARCH_DELE_PDF_${stamp}.zip`);
+      setNotification({ message: `Se generaron ${registrosTotal.length} PDFs en un ZIP.`, type: "success" });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Error desconocido";
+      setNotification({ message: `No se pudieron generar los PDFs: ${msg}`, type: "error" });
+    } finally {
+      setPdfAllLoading(false);
+    }
+  };
 
   const aplicarReglasArchivoMes = (rows: GenericRow[]): {
     rows: GenericRow[];
@@ -639,7 +816,15 @@ export default function ArchivoDelegacionesModule() {
     return Array.from({ length: currentYear - baseYear + 2 }, (_, idx) => String(currentYear + 1 - idx));
   }, []);
 
-  const renderTable = (rows: GenericRow[], loading: boolean, filtroAplicado: boolean, hint: string) => {
+  const renderTable = (
+    rows: GenericRow[],
+    loading: boolean,
+    filtroAplicado: boolean,
+    hint: string,
+    opts?: { showPdfActions?: boolean }
+  ) => {
+    const showPdfActions = Boolean(opts?.showPdfActions);
+
     return (
       <div className="max-h-[360px] overflow-auto custom-scrollbar">
         <table className="w-full text-[10px] text-left border-collapse min-w-[62rem]">
@@ -650,12 +835,13 @@ export default function ArchivoDelegacionesModule() {
                   {header.label}
                 </th>
               ))}
+              {showPdfActions && <th className="p-3 border-r border-black/30 whitespace-nowrap">PDF</th>}
             </tr>
           </thead>
           <tbody className="text-white/75">
             {!loading && !filtroAplicado && (
               <tr>
-                <td colSpan={ARCHIVO_HEADERS.length} className="p-6 text-center text-white/40 text-sm">
+                <td colSpan={ARCHIVO_HEADERS.length + (showPdfActions ? 1 : 0)} className="p-6 text-center text-white/40 text-sm">
                   {hint}
                 </td>
               </tr>
@@ -663,7 +849,7 @@ export default function ArchivoDelegacionesModule() {
 
             {loading && (
               <tr>
-                <td colSpan={ARCHIVO_HEADERS.length} className="p-6 text-center text-white/50 text-sm">
+                <td colSpan={ARCHIVO_HEADERS.length + (showPdfActions ? 1 : 0)} className="p-6 text-center text-white/50 text-sm">
                   Cargando datos...
                 </td>
               </tr>
@@ -671,7 +857,7 @@ export default function ArchivoDelegacionesModule() {
 
             {!loading && filtroAplicado && rows.length === 0 && (
               <tr>
-                <td colSpan={ARCHIVO_HEADERS.length} className="p-6 text-center text-white/40 text-sm">
+                <td colSpan={ARCHIVO_HEADERS.length + (showPdfActions ? 1 : 0)} className="p-6 text-center text-white/40 text-sm">
                   Sin datos para mostrar.
                 </td>
               </tr>
@@ -684,6 +870,17 @@ export default function ArchivoDelegacionesModule() {
                     {toText(readFirstValue(row, header.keys))}
                   </td>
                 ))}
+                {showPdfActions && (
+                  <td className="p-3 whitespace-nowrap">
+                    <button
+                      onClick={() => void descargarFilaPdf(row)}
+                      disabled={pdfAllLoading || !pdfTemplate || pdfRowBusyKey.length > 0}
+                      className="px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all bg-indigo-500/20 text-indigo-100 hover:bg-indigo-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Descargar PDF
+                    </button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -929,8 +1126,16 @@ export default function ArchivoDelegacionesModule() {
             {loadingTotal ? "Filtrando..." : "Filtrar"}
           </button>
 
+          <button
+            onClick={descargarTodosPdfZip}
+            disabled={pdfAllLoading || loadingTotal || !filtroAplicadoTotal || registrosTotal.length === 0 || !pdfTemplate}
+            className="px-4 py-2 rounded-xl text-xs font-bold transition-all bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {pdfAllLoading ? "Generando ZIP de PDFs..." : "Descargar todos los PDF (ZIP)"}
+          </button>
+
           <div className="rounded-2xl border border-white/10 bg-black/20 overflow-hidden">
-            {renderTable(registrosTotal, loadingTotal, filtroAplicadoTotal, "Aplica un rango de fechas para ver información.")}
+            {renderTable(registrosTotal, loadingTotal, filtroAplicadoTotal, "Aplica un rango de fechas para ver información.", { showPdfActions: true })}
           </div>
         </div>
       )}
