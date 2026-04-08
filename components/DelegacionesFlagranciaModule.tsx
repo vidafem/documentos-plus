@@ -405,8 +405,8 @@ export const syncDelegacionesFromFlagranciaGlobal = async (selectedYearNum: numb
       const mappedValue = mapped[column] || "";
       const existingValue = existing ? toText(existing[column]) : "";
 
-      // Regla de preservación: nunca borrar datos manuales ya guardados con un valor vacío del mapeo.
-      insertRow[column] = mappedValue.trim().length > 0 ? mappedValue : existingValue;
+      // Regla conservadora: priorizar siempre el dato ya existente para no sobrescribir carga manual.
+      insertRow[column] = existingValue.trim().length > 0 ? existingValue : mappedValue;
     });
     return insertRow;
   });

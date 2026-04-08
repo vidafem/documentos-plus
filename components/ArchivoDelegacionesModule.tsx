@@ -271,6 +271,9 @@ const buildArchCompositeKey = (expediente: unknown, cierre: unknown): string => 
   return exp && ym ? `${exp}|${ym}` : "";
 };
 
+const buildArchExpedienteKey = (expediente: unknown): string =>
+  String(expediente ?? "").trim();
+
 const sortRowsByCierreAndId = (rows: GenericRow[]): GenericRow[] => {
   const sorted = [...rows];
   sorted.sort((a, b) => {
@@ -372,6 +375,8 @@ export const syncArchDeleFromFlagranciaGlobal = async (): Promise<{
   const dedupedPayload = Array.from(uniqueByExpediente.values());
 
   const existingManualValuesByComposite = new Map<string, { caja: string; tomo: string }>();
+  const existingManualValuesByExpediente = new Map<string, { caja: string; tomo: string }>();
+  const existingRowsByComposite = new Map<string, GenericRow>();
   {
     const PAGE_SIZE_EXISTING = 1000;
     let fromExisting = 0;
@@ -389,15 +394,23 @@ export const syncArchDeleFromFlagranciaGlobal = async (): Promise<{
 
       const chunk = (existingData || []) as GenericRow[];
       chunk.forEach((row) => {
+        const expediente = readFirstValue(row, ["N°_DE_EXPEDIENTE", "N_DE_EXPEDIENTE", "EXPEDIENTE", "expediente"]);
         const key = buildArchCompositeKey(
-          readFirstValue(row, ["N°_DE_EXPEDIENTE", "N_DE_EXPEDIENTE", "EXPEDIENTE", "expediente"]),
+          expediente,
           readFirstValue(row, ["CIERRE", "FECHA_CIERRE", "fecha_cierre"])
         );
-        if (!key) return;
-
         const caja = toText(readFirstValue(row, ["N°CAJA", "N_CAJA", "n_caja"]));
         const tomo = toText(readFirstValue(row, ["N°_DE_TOMO", "N_DE_TOMO", "N_TOMO", "n_tomo"]));
-        existingManualValuesByComposite.set(key, { caja, tomo });
+
+        if (key) {
+          existingManualValuesByComposite.set(key, { caja, tomo });
+          existingRowsByComposite.set(key, row);
+        }
+
+        const expKey = buildArchExpedienteKey(expediente);
+        if (expKey && !existingManualValuesByExpediente.has(expKey)) {
+          existingManualValuesByExpediente.set(expKey, { caja, tomo });
+        }
       });
 
       if (chunk.length < PAGE_SIZE_EXISTING) break;
@@ -407,7 +420,9 @@ export const syncArchDeleFromFlagranciaGlobal = async (): Promise<{
 
   const mergedPayload = dedupedPayload.map((row) => {
     const key = buildArchCompositeKey(row["N°_DE_EXPEDIENTE"], row["CIERRE"]);
-    const existing = key ? existingManualValuesByComposite.get(key) : undefined;
+    const expKey = buildArchExpedienteKey(row["N°_DE_EXPEDIENTE"]);
+    const existing = (key ? existingManualValuesByComposite.get(key) : undefined)
+      || (expKey ? existingManualValuesByExpediente.get(expKey) : undefined);
     if (!existing) return row;
 
     const merged = { ...row };
@@ -419,6 +434,24 @@ export const syncArchDeleFromFlagranciaGlobal = async (): Promise<{
 
     return merged;
   });
+
+  const incomingKeys = new Set(
+    mergedPayload
+      .map((row) => buildArchCompositeKey(row["N°_DE_EXPEDIENTE"], row["CIERRE"]))
+      .filter(Boolean)
+  );
+
+  const carriedExistingRows: Record<string, string | number | null>[] = [];
+  existingRowsByComposite.forEach((row, key) => {
+    if (incomingKeys.has(key)) return;
+    const carried: Record<string, string | number | null> = {};
+    ARCH_DELE_INSERT_COLUMNS.forEach((column) => {
+      carried[column] = toText(readFirstValue(row, [column])) || null;
+    });
+    carriedExistingRows.push(carried);
+  });
+
+  const finalPayload = [...mergedPayload, ...carriedExistingRows];
 
   const { error: clearNotNullError } = await supabase
     .from("Arch_dele")
@@ -438,9 +471,9 @@ export const syncArchDeleFromFlagranciaGlobal = async (): Promise<{
     throw new Error(`No se pudo limpiar Arch_dele: ${clearNullError.message}`);
   }
 
-  if (mergedPayload.length > 0) {
-    for (let i = 0; i < mergedPayload.length; i += 500) {
-      const slice = mergedPayload.slice(i, i + 500);
+  if (finalPayload.length > 0) {
+    for (let i = 0; i < finalPayload.length; i += 500) {
+      const slice = finalPayload.slice(i, i + 500);
       const { error: insertError } = await supabase
         .from("Arch_dele")
         .insert(slice);
@@ -452,7 +485,7 @@ export const syncArchDeleFromFlagranciaGlobal = async (): Promise<{
   }
 
   return {
-    dedupedCount: mergedPayload.length,
+    dedupedCount: finalPayload.length,
     skippedDuplicates: payload.length - dedupedPayload.length,
     omittedWithoutDates: flagranciaRows.length - payload.length,
   };
@@ -532,11 +565,35 @@ export default function ArchivoDelegacionesModule() {
     container.style.top = "0";
     container.style.width = "1123px";
     container.style.background = "#ffffff";
+    container.style.color = "#000000";
+    container.style.fontFamily = "Arial, Helvetica, sans-serif";
     container.style.padding = "12px";
     container.style.boxSizing = "border-box";
-    container.innerHTML = templateFilled;
+    container.innerHTML = `
+      <style>
+        * { color: #000 !important; -webkit-text-fill-color: #000 !important; }
+        table { width: 100% !important; border-collapse: collapse; }
+      </style>
+      ${templateFilled}
+    `;
 
     document.body.appendChild(container);
+
+    const images = Array.from(container.querySelectorAll("img"));
+    await Promise.all(
+      images.map(
+        (img) =>
+          new Promise<void>((resolve) => {
+            if (img.complete) {
+              resolve();
+              return;
+            }
+            const done = () => resolve();
+            img.addEventListener("load", done, { once: true });
+            img.addEventListener("error", done, { once: true });
+          })
+      )
+    );
 
     const canvas = await html2canvas(container, {
       scale: 2,
