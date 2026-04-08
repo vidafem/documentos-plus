@@ -366,23 +366,50 @@ export const syncDelegacionesFromFlagranciaGlobal = async (selectedYearNum: numb
     isFromYearOnward(getRecepcionDateFromFlagrancia(row), selectedYearNum)
   );
 
+  const existingDelegacionesByOrden = new Map<string, GenericRow>();
+  {
+    const PAGE_SIZE_EXISTING = 1000;
+    let existingFrom = 0;
+    while (true) {
+      const existingTo = existingFrom + PAGE_SIZE_EXISTING - 1;
+      const { data: existingData, error: existingError } = await supabase
+        .from("DELEGACIONES")
+        .select("*")
+        .order("ORDEN", { ascending: true })
+        .range(existingFrom, existingTo);
+
+      if (existingError) {
+        throw new Error(`Error leyendo DELEGACIONES existentes: ${existingError.message}`);
+      }
+
+      const chunk = (existingData || []) as GenericRow[];
+      chunk.forEach((row) => {
+        const orden = toText(row["ORDEN"]);
+        if (orden) {
+          existingDelegacionesByOrden.set(orden, row);
+        }
+      });
+
+      if (chunk.length < PAGE_SIZE_EXISTING) break;
+      existingFrom += PAGE_SIZE_EXISTING;
+    }
+  }
+
   const payload = filteredFlagranciaRows.map((row, index) => {
     const mapped = mapFlagranciaToDelegaciones(row, index, articulosByDelito, fiscalCodByKey);
     const insertRow: Record<string, string> = {};
+    const orden = toText(mapped["ORDEN"]);
+    const existing = orden ? existingDelegacionesByOrden.get(orden) : undefined;
+
     DELEGACIONES_INSERT_COLUMNS.forEach((column) => {
-      insertRow[column] = mapped[column] || "";
+      const mappedValue = mapped[column] || "";
+      const existingValue = existing ? toText(existing[column]) : "";
+
+      // Regla de preservación: nunca borrar datos manuales ya guardados con un valor vacío del mapeo.
+      insertRow[column] = mappedValue.trim().length > 0 ? mappedValue : existingValue;
     });
     return insertRow;
   });
-
-  const { error: deleteError1 } = await supabase
-    .from("DELEGACIONES")
-    .delete()
-    .gte("FECHA_DE_RECEPCIÓN_EN_LA_PJ", `${selectedYearNum}/01/01`);
-
-  if (deleteError1) {
-    throw new Error(`No se pudo limpiar DELEGACIONES por año: ${deleteError1.message}`);
-  }
 
   if (payload.length > 0) {
     for (let i = 0; i < payload.length; i += 500) {

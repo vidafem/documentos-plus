@@ -264,6 +264,31 @@ const getPdfNameBase = (row: GenericRow): string => {
   return sanitizeFileName(`${expediente}_${cierre}`);
 };
 
+const buildArchCompositeKey = (expediente: unknown, cierre: unknown): string => {
+  const exp = String(expediente ?? "").trim();
+  const cierreNorm = normalizeDateValue(String(cierre ?? ""));
+  const ym = cierreNorm ? cierreNorm.slice(0, 7) : "";
+  return exp && ym ? `${exp}|${ym}` : "";
+};
+
+const sortRowsByCierreAndId = (rows: GenericRow[]): GenericRow[] => {
+  const sorted = [...rows];
+  sorted.sort((a, b) => {
+    const aDate = toSortableDateNumber(readFirstValue(a, ["CIERRE", "FECHA_CIERRE", "fecha_cierre"]));
+    const bDate = toSortableDateNumber(readFirstValue(b, ["CIERRE", "FECHA_CIERRE", "fecha_cierre"]));
+    if (aDate !== bDate) return aDate - bDate;
+
+    const aId = Number(a.id ?? 0);
+    const bId = Number(b.id ?? 0);
+    if (Number.isFinite(aId) && Number.isFinite(bId) && aId !== bId) return aId - bId;
+
+    const aExp = getExpedienteFromRow(a);
+    const bExp = getExpedienteFromRow(b);
+    return aExp.localeCompare(bExp);
+  });
+  return sorted;
+};
+
 export const syncArchDeleFromFlagranciaGlobal = async (): Promise<{
   dedupedCount: number;
   skippedDuplicates: number;
@@ -346,6 +371,55 @@ export const syncArchDeleFromFlagranciaGlobal = async (): Promise<{
   });
   const dedupedPayload = Array.from(uniqueByExpediente.values());
 
+  const existingManualValuesByComposite = new Map<string, { caja: string; tomo: string }>();
+  {
+    const PAGE_SIZE_EXISTING = 1000;
+    let fromExisting = 0;
+    while (true) {
+      const toExisting = fromExisting + PAGE_SIZE_EXISTING - 1;
+      const { data: existingData, error: existingError } = await supabase
+        .from("Arch_dele")
+        .select("*")
+        .order("id", { ascending: true })
+        .range(fromExisting, toExisting);
+
+      if (existingError) {
+        throw new Error(`No se pudo leer Arch_dele existente: ${existingError.message}`);
+      }
+
+      const chunk = (existingData || []) as GenericRow[];
+      chunk.forEach((row) => {
+        const key = buildArchCompositeKey(
+          readFirstValue(row, ["N°_DE_EXPEDIENTE", "N_DE_EXPEDIENTE", "EXPEDIENTE", "expediente"]),
+          readFirstValue(row, ["CIERRE", "FECHA_CIERRE", "fecha_cierre"])
+        );
+        if (!key) return;
+
+        const caja = toText(readFirstValue(row, ["N°CAJA", "N_CAJA", "n_caja"]));
+        const tomo = toText(readFirstValue(row, ["N°_DE_TOMO", "N_DE_TOMO", "N_TOMO", "n_tomo"]));
+        existingManualValuesByComposite.set(key, { caja, tomo });
+      });
+
+      if (chunk.length < PAGE_SIZE_EXISTING) break;
+      fromExisting += PAGE_SIZE_EXISTING;
+    }
+  }
+
+  const mergedPayload = dedupedPayload.map((row) => {
+    const key = buildArchCompositeKey(row["N°_DE_EXPEDIENTE"], row["CIERRE"]);
+    const existing = key ? existingManualValuesByComposite.get(key) : undefined;
+    if (!existing) return row;
+
+    const merged = { ...row };
+    const currentCaja = toText(merged["N°CAJA"]);
+    const currentTomo = toText(merged["N°_DE_TOMO"]);
+
+    if (!currentCaja && existing.caja) merged["N°CAJA"] = existing.caja;
+    if (!currentTomo && existing.tomo) merged["N°_DE_TOMO"] = existing.tomo;
+
+    return merged;
+  });
+
   const { error: clearNotNullError } = await supabase
     .from("Arch_dele")
     .delete()
@@ -364,9 +438,9 @@ export const syncArchDeleFromFlagranciaGlobal = async (): Promise<{
     throw new Error(`No se pudo limpiar Arch_dele: ${clearNullError.message}`);
   }
 
-  if (dedupedPayload.length > 0) {
-    for (let i = 0; i < dedupedPayload.length; i += 500) {
-      const slice = dedupedPayload.slice(i, i + 500);
+  if (mergedPayload.length > 0) {
+    for (let i = 0; i < mergedPayload.length; i += 500) {
+      const slice = mergedPayload.slice(i, i + 500);
       const { error: insertError } = await supabase
         .from("Arch_dele")
         .insert(slice);
@@ -378,7 +452,7 @@ export const syncArchDeleFromFlagranciaGlobal = async (): Promise<{
   }
 
   return {
-    dedupedCount: dedupedPayload.length,
+    dedupedCount: mergedPayload.length,
     skippedDuplicates: payload.length - dedupedPayload.length,
     omittedWithoutDates: flagranciaRows.length - payload.length,
   };
@@ -550,7 +624,10 @@ export default function ArchivoDelegacionesModule() {
     const endIndex = Number.isFinite(endRaw) && endRaw > 0 ? Math.floor(endRaw) : totalRows;
     const maxFojas = Number.isFinite(maxFojasRaw) && maxFojasRaw > 0 ? Math.floor(maxFojasRaw) : 400;
 
-    const boundedRows = rows.slice(startIndex - 1, Math.max(startIndex - 1, endIndex));
+    const safeStart = Math.min(Math.max(startIndex, 1), totalRows);
+    const safeEnd = Math.min(Math.max(endIndex, safeStart), totalRows);
+    const orderedRows = sortRowsByCierreAndId(rows);
+    const boundedRows = orderedRows.slice(safeStart - 1, safeEnd);
     const totalFojasRango = boundedRows.reduce((acc, row) => {
       const fojasValue = toNullableInteger(readFirstValue(row, ARCHIVO_HEADERS[7].keys)) || 0;
       return acc + fojasValue;
@@ -741,7 +818,7 @@ export default function ArchivoDelegacionesModule() {
       from += PAGE_SIZE;
     }
 
-    setRegistrosMesBase(allRows);
+    setRegistrosMesBase(sortRowsByCierreAndId(allRows));
     setFiltroAplicadoMes(true);
     setLoadingMes(false);
   };
@@ -785,7 +862,7 @@ export default function ArchivoDelegacionesModule() {
       from += PAGE_SIZE;
     }
 
-    setRegistrosTotal(allRows);
+    setRegistrosTotal(sortRowsByCierreAndId(allRows));
     setFiltroAplicadoTotal(true);
     setLoadingTotal(false);
   };
