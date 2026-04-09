@@ -261,6 +261,29 @@ const replaceTemplateTokens = (template: string, values: Record<string, string>)
   return html;
 };
 
+const normalizePdfTemplateHtml = (template: string): string => {
+  if (typeof DOMParser === "undefined") {
+    return template;
+  }
+
+  try {
+    const parser = new DOMParser();
+    const documentNode = parser.parseFromString(template, "text/html");
+    const headStyles = Array.from(documentNode.head.querySelectorAll("style, link[rel='stylesheet']"))
+      .map((node) => node.outerHTML)
+      .join("\n");
+    const bodyContent = documentNode.body.innerHTML.trim();
+
+    if (!headStyles && !bodyContent) {
+      return template;
+    }
+
+    return `${headStyles}\n${bodyContent}`.trim();
+  } catch {
+    return template;
+  }
+};
+
 const downloadBlob = (blob: Blob, fileName: string): void => {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
@@ -548,7 +571,7 @@ export default function ArchivoDelegacionesModule() {
         }
         const html = await response.text();
         if (active) {
-          setPdfTemplate(html);
+          setPdfTemplate(normalizePdfTemplateHtml(html));
         }
       } catch (error) {
         if (active) {

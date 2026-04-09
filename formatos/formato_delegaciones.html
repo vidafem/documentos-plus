@@ -1,226 +1,141 @@
-<div class="expediente-page">
-	<style>
-		.expediente-page {
-			width: 1123px;
-			min-height: 794px;
-			background: #fff;
-			color: #000;
-			font-family: "Arial Narrow", Arial, Helvetica, sans-serif;
-			box-sizing: border-box;
-			padding: 8px 10px;
-		}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        /* Contenedor principal para control de impresión */
+        .folder-cover {
+            font-family: Arial, Helvetica, sans-serif;
+            width: 100%;
+            max-width: 1123px;
+            margin: 0 auto;
+            border-collapse: collapse;
+            border: 2px solid #000;
+        }
 
-		.expediente-table {
-			width: 100%;
-			border-collapse: collapse;
-			table-layout: fixed;
-			border: 1px solid #c7c7c7;
-		}
+        .folder-cover td {
+            border: 1px solid #000;
+            padding: 8px;
+            vertical-align: middle;
+            font-size: 12px;
+        }
 
-		.expediente-table td {
-			border: 1px solid #cfcfcf;
-			padding: 6px 9px;
-			vertical-align: middle;
-			font-size: 12px;
-			line-height: 1.18;
-			font-weight: 700;
-			letter-spacing: -0.15px;
-		}
+        /* Utilidades de texto */
+        .text-center { text-align: center; }
+        .bold { font-weight: bold; }
+        .uppercase { text-transform: uppercase; }
+        
+        /* Tamaños específicos */
+        .header-title { font-size: 14px; }
+        .expediente-num { font-size: 18px; }
+        
+        /* Estilo de las cajas de marcado (X) */
+        .caja-check {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 1px solid #000;
+            line-height: 20px;
+            text-align: center;
+            vertical-align: middle;
+        }
 
-		.logo-cell {
-			text-align: center;
-			padding: 6px;
-		}
+        .logo-cell {
+            width: 150px;
+            text-align: center;
+        }
 
-		.logo-cell img {
-			width: 102px;
-			height: 102px;
-			object-fit: contain;
-			margin: 0 auto;
-		}
+        .logo-img {
+            width: 110px;
+            height: auto;
+        }
 
-		.title-main {
-			text-align: center;
-			font-size: 15px;
-			line-height: 1.12;
-			padding-top: 6px;
-			padding-bottom: 6px;
-			text-transform: uppercase;
-		}
+        /* Ajuste de filas */
+        .row-tall { height: 60px; }
+    </style>
+</head>
+<body>
 
-		.title-format {
-			text-align: center;
-			font-size: 14px;
-			padding-top: 9px;
-			padding-bottom: 9px;
-			text-transform: uppercase;
-		}
+<table class="folder-cover">
+    <tr>
+        <td rowspan="2" class="logo-cell">
+            <img src="/formatos/logopoli.png" alt="Logo Policía Nacional" class="logo-img">
+        </td>
+        <td colspan="6" class="text-center bold header-title">
+            POLICÍA NACIONAL DEL ECUADOR<br>
+            POLICÍA JUDICIAL DE LA ZONA 8
+        </td>
+    </tr>
+    <tr>
+        <td colspan="6" class="text-center bold">FORMATO DE CARÁTULA DE EXPEDIENTE</td>
+    </tr>
 
-		.label {
-			text-align: left;
-			text-transform: uppercase;
-		}
+    <tr>
+        <td class="bold">SECCIÓN DOCUMENTAL</td>
+        <td colspan="6" class="text-center bold uppercase">POLICIA JUDICIAL DE LA ZONA 8.</td>
+    </tr>
 
-		.center {
-			text-align: center;
-			text-transform: uppercase;
-		}
+    <tr>
+        <td class="bold">SUBSECCIÓN DOCUMENTAL</td>
+        <td colspan="6" class="text-center bold uppercase">UNIDAD DE FLAGRANCIA MODELO</td>
+    </tr>
 
-		.value {
-			text-align: center;
-			font-size: 12px;
-			text-transform: none;
-			font-weight: 700;
-		}
+    <tr class="row-tall">
+        <td class="bold">SERIE DOCUMENTAL</td>
+        <td colspan="2" class="text-center bold">PROCEDIMIENTOS INVESTIGATIVOS POR DISPOSICIÓN JUDICIAL</td>
+        <td colspan="2" class="text-center bold">SUBSERIE DOCUMENTAL</td>
+        <td colspan="2" class="text-center bold">S/D</td>
+    </tr>
 
-		.descripcion {
-			font-size: 12px;
-			line-height: 1.45;
-			padding: 14px 18px;
-			word-break: break-word;
-			white-space: normal;
-		}
+    <tr>
+        <td class="bold">DESCRIPCIÓN DOCUMENTAL</td>
+        <td colspan="6" class="text-center bold">{{DESCRIPCION}}</td>
+    </tr>
 
-		.serie {
-			font-size: 12px;
-			line-height: 1.5;
-			padding: 14px 8px;
-			text-transform: uppercase;
-		}
+    <tr>
+        <td class="bold">NUMERO DE EXPEDIENTE</td>
+        <td colspan="6" class="text-center bold expediente-num">{{N° DE EXPEDIENTE}}</td>
+    </tr>
 
-		.expediente {
-			font-size: 13px;
-			letter-spacing: -0.1px;
-		}
+    <tr>
+        <td class="bold">FECHA DE APERTURA</td>
+        <td colspan="2" class="text-center bold">{{ APERTURA }}</td>
+        <td class="text-center bold">FECHA DE CIERRE</td>
+        <td colspan="3" class="text-center bold">{{ CIERRE }}</td>
+    </tr>
 
-		.check-cell,
-		.small-value {
-			text-align: center;
-			font-size: 12px;
-		}
+    <tr>
+        <td rowspan="4" class="bold"><br>VALOR DOCUMENTAL</td>
+        <td colspan="2" rowspan="4" class="text-center bold">Primario</td>
+        <td colspan="2" rowspan="3" class="text-center bold">CONDICIONES DE ACCESO</td>
+        <td class="text-center bold">RESERVADO</td>
+        <td>&nbsp;</td>
+    </tr>
+    <tr>
+        <td class="text-center bold">CONFIDENCIAL</td>
+        <td>&nbsp;</td>
+    </tr>
+    <tr>
+        <td class="text-center bold">PÚBLICO</td>
+        <td class="text-center"><span class="caja-check bold">X</span></td>
+    </tr>
+    <tr>
+        <td class="text-center bold">CONSERVACIÓN</td>
+        <td>&nbsp;</td>
+        <td class="text-center bold">N° DE FOJAS</td>
+        <td class="text-center bold">{{ N° FOJAS }}</td>
+    </tr>
 
-		.small-value {
-			text-transform: none;
-		}
+    <tr>
+        <td class="bold">PLAZO DE CONSERVACIÓN</td>
+        <td class="text-center bold">20</td>
+        <td class="text-center bold">DESTINO FINAL</td>
+        <td class="text-center bold">ELIMINACIÓN</td>
+        <td class="text-center"><span class="caja-check bold">X</span></td>
+        <td class="text-center bold">N° DE TOMO</td>
+        <td class="text-center bold">{{ N° DE TOMO }}</td>
+    </tr>
+</table>
 
-		.row-main {
-			height: 48px;
-		}
-
-		.row-format {
-			height: 33px;
-		}
-
-		.row-simple {
-			height: 34px;
-		}
-
-		.row-serie {
-			height: 56px;
-		}
-
-		.row-descripcion {
-			height: 64px;
-		}
-
-		.row-expediente {
-			height: 34px;
-		}
-
-		.row-fechas {
-			height: 36px;
-		}
-
-		.row-access {
-			height: 31px;
-		}
-
-		.row-final {
-			height: 36px;
-		}
-
-		.spacer-top {
-			vertical-align: top;
-			padding-top: 20px;
-		}
-	</style>
-
-	<table class="expediente-table">
-		<colgroup>
-			<col style="width: 22.667%;">
-			<col style="width: 10.845%;">
-			<col style="width: 14.3623%;">
-			<col style="width: 15.8278%;">
-			<col style="width: 7.52309%;">
-			<col style="width: 12.2128%;">
-			<col style="width: 16.5117%;">
-		</colgroup>
-		<tbody>
-			<tr class="row-main">
-				<td class="logo-cell" rowspan="2"><img src="/formatos/logopoli.png" alt="Logo"></td>
-				<td class="title-main" colspan="6">POLICÍA NACIONAL DEL ECUADOR<br>POLICÍA JUDICIAL DE LA ZONA 8</td>
-			</tr>
-			<tr class="row-format">
-				<td class="title-format" colspan="6">FORMATO DE CARÁTULA DE EXPEDIENTE</td>
-			</tr>
-			<tr class="row-simple">
-				<td class="label">SECCIÓN DOCUMENTAL</td>
-				<td class="center" colspan="6">POLICIA JUDICIAL DE LA ZONA 8.</td>
-			</tr>
-			<tr class="row-simple">
-				<td class="label">SUBSECCIÓN DOCUMENTAL</td>
-				<td class="center" colspan="6">UNIDAD DE FLAGRANCIA MODELO</td>
-			</tr>
-			<tr class="row-serie">
-				<td class="label">SERIE DOCUMENTAL</td>
-				<td class="center serie" colspan="2">PROCEDIMIENTOS INVESTIGATIVOS POR DISPOSICIÓN JUDICIAL</td>
-				<td class="center" colspan="2">SUBSERIE DOCUMENTAL</td>
-				<td class="center" colspan="2">S/D</td>
-			</tr>
-			<tr class="row-descripcion">
-				<td class="label">DESCRIPCIÓN DOCUMENTAL</td>
-				<td class="value descripcion" colspan="6">{{DESCRIPCION}}</td>
-			</tr>
-			<tr class="row-expediente">
-				<td class="label">NUMERO DE EXPEDIENTE</td>
-				<td class="value expediente" colspan="6">{{N° DE EXPEDIENTE}}</td>
-			</tr>
-			<tr class="row-fechas">
-				<td class="label">FECHA DE APERTURA</td>
-				<td class="value" colspan="2">{{ APERTURA }}</td>
-				<td class="center">FECHA DE CIERRE</td>
-				<td class="value" colspan="3">{{ CIERRE }}</td>
-			</tr>
-			<tr class="row-access">
-				<td class="label spacer-top" rowspan="4">VALOR DOCUMENTAL</td>
-				<td class="value" colspan="2" rowspan="4">Primario</td>
-				<td class="center" colspan="2" rowspan="3">CONDICIONES DE ACCESO</td>
-				<td class="center">RESERVADO</td>
-				<td class="check-cell"></td>
-			</tr>
-			<tr class="row-access">
-				<td class="center">CONFIDENCIAL</td>
-				<td class="check-cell"></td>
-			</tr>
-			<tr class="row-access">
-				<td class="center">PÚBLICO</td>
-				<td class="check-cell">X</td>
-			</tr>
-			<tr class="row-access">
-				<td class="center">CONSERVACIÓN</td>
-				<td class="check-cell"></td>
-				<td class="center">N° DE FOJAS</td>
-				<td class="small-value">{{ N° FOJAS }}</td>
-			</tr>
-			<tr class="row-final">
-				<td class="label">PLAZO DE CONSERVACIÓN</td>
-				<td class="small-value">20</td>
-				<td class="center">DESTINO FINAL</td>
-				<td class="center">ELIMINACIÓN</td>
-				<td class="check-cell">X</td>
-				<td class="center">N° DE TOMO</td>
-				<td class="small-value">{{ N° DE TOMO }}</td>
-			</tr>
-		</tbody>
-	</table>
-</div>
+</body>
+</html>
