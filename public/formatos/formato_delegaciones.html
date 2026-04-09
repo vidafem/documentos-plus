@@ -7,94 +7,141 @@
 			color: #000;
 			font-family: "Arial Narrow", Arial, Helvetica, sans-serif;
 			box-sizing: border-box;
+			padding: 8px 10px;
 		}
 
 		.expediente-table {
 			width: 100%;
 			border-collapse: collapse;
 			table-layout: fixed;
-			border: 1.5px solid #8f8f8f;
+			border: 1px solid #c7c7c7;
 		}
 
 		.expediente-table td {
-			border: 1.5px solid #c8c8c8;
-			padding: 8px 10px;
+			border: 1px solid #cfcfcf;
+			padding: 6px 9px;
 			vertical-align: middle;
-			font-size: 15px;
-			line-height: 1.2;
+			font-size: 12px;
+			line-height: 1.18;
 			font-weight: 700;
-			text-transform: uppercase;
-			letter-spacing: -0.2px;
+			letter-spacing: -0.15px;
 		}
 
 		.logo-cell {
 			text-align: center;
-			padding: 8px;
+			padding: 6px;
 		}
 
 		.logo-cell img {
-			width: 108px;
-			height: 108px;
+			width: 102px;
+			height: 102px;
 			object-fit: contain;
 			margin: 0 auto;
 		}
 
 		.title-main {
 			text-align: center;
-			font-size: 17px;
-			line-height: 1.15;
-			padding-top: 10px;
-			padding-bottom: 10px;
+			font-size: 15px;
+			line-height: 1.12;
+			padding-top: 6px;
+			padding-bottom: 6px;
+			text-transform: uppercase;
 		}
 
 		.title-format {
 			text-align: center;
-			font-size: 17px;
-			padding-top: 14px;
-			padding-bottom: 14px;
+			font-size: 14px;
+			padding-top: 9px;
+			padding-bottom: 9px;
+			text-transform: uppercase;
 		}
 
 		.label {
 			text-align: left;
+			text-transform: uppercase;
 		}
 
 		.center {
 			text-align: center;
+			text-transform: uppercase;
 		}
 
 		.value {
 			text-align: center;
-			font-size: 16px;
+			font-size: 12px;
 			text-transform: none;
 			font-weight: 700;
 		}
 
 		.descripcion {
-			font-size: 15px;
-			line-height: 1.3;
-			padding: 12px 16px;
+			font-size: 12px;
+			line-height: 1.45;
+			padding: 14px 18px;
 			word-break: break-word;
+			white-space: normal;
 		}
 
 		.serie {
-			font-size: 15px;
-			line-height: 1.35;
-			padding: 12px 10px;
+			font-size: 12px;
+			line-height: 1.5;
+			padding: 14px 8px;
+			text-transform: uppercase;
 		}
 
 		.expediente {
-			font-size: 18px;
-			letter-spacing: -0.3px;
+			font-size: 13px;
+			letter-spacing: -0.1px;
 		}
 
 		.check-cell,
 		.small-value {
 			text-align: center;
-			font-size: 16px;
+			font-size: 12px;
+		}
+
+		.small-value {
+			text-transform: none;
+		}
+
+		.row-main {
+			height: 48px;
+		}
+
+		.row-format {
+			height: 33px;
+		}
+
+		.row-simple {
+			height: 34px;
+		}
+
+		.row-serie {
+			height: 56px;
+		}
+
+		.row-descripcion {
+			height: 64px;
+		}
+
+		.row-expediente {
+			height: 34px;
+		}
+
+		.row-fechas {
+			height: 36px;
+		}
+
+		.row-access {
+			height: 31px;
+		}
+
+		.row-final {
+			height: 36px;
 		}
 
 		.spacer-top {
 			vertical-align: top;
+			padding-top: 20px;
 		}
 	</style>
 
@@ -109,63 +156,63 @@
 			<col style="width: 16.5117%;">
 		</colgroup>
 		<tbody>
-			<tr>
+			<tr class="row-main">
 				<td class="logo-cell" rowspan="2"><img src="/formatos/logopoli.png" alt="Logo"></td>
 				<td class="title-main" colspan="6">POLICÍA NACIONAL DEL ECUADOR<br>POLICÍA JUDICIAL DE LA ZONA 8</td>
 			</tr>
-			<tr>
+			<tr class="row-format">
 				<td class="title-format" colspan="6">FORMATO DE CARÁTULA DE EXPEDIENTE</td>
 			</tr>
-			<tr>
+			<tr class="row-simple">
 				<td class="label">SECCIÓN DOCUMENTAL</td>
 				<td class="center" colspan="6">POLICIA JUDICIAL DE LA ZONA 8.</td>
 			</tr>
-			<tr>
+			<tr class="row-simple">
 				<td class="label">SUBSECCIÓN DOCUMENTAL</td>
 				<td class="center" colspan="6">UNIDAD DE FLAGRANCIA MODELO</td>
 			</tr>
-			<tr>
+			<tr class="row-serie">
 				<td class="label">SERIE DOCUMENTAL</td>
 				<td class="center serie" colspan="2">PROCEDIMIENTOS INVESTIGATIVOS POR DISPOSICIÓN JUDICIAL</td>
 				<td class="center" colspan="2">SUBSERIE DOCUMENTAL</td>
 				<td class="center" colspan="2">S/D</td>
 			</tr>
-			<tr>
+			<tr class="row-descripcion">
 				<td class="label">DESCRIPCIÓN DOCUMENTAL</td>
 				<td class="value descripcion" colspan="6">{{DESCRIPCION}}</td>
 			</tr>
-			<tr>
+			<tr class="row-expediente">
 				<td class="label">NUMERO DE EXPEDIENTE</td>
 				<td class="value expediente" colspan="6">{{N° DE EXPEDIENTE}}</td>
 			</tr>
-			<tr>
+			<tr class="row-fechas">
 				<td class="label">FECHA DE APERTURA</td>
 				<td class="value" colspan="2">{{ APERTURA }}</td>
 				<td class="center">FECHA DE CIERRE</td>
 				<td class="value" colspan="3">{{ CIERRE }}</td>
 			</tr>
-			<tr>
+			<tr class="row-access">
 				<td class="label spacer-top" rowspan="4">VALOR DOCUMENTAL</td>
 				<td class="value" colspan="2" rowspan="4">Primario</td>
 				<td class="center" colspan="2" rowspan="3">CONDICIONES DE ACCESO</td>
 				<td class="center">RESERVADO</td>
 				<td class="check-cell"></td>
 			</tr>
-			<tr>
+			<tr class="row-access">
 				<td class="center">CONFIDENCIAL</td>
 				<td class="check-cell"></td>
 			</tr>
-			<tr>
+			<tr class="row-access">
 				<td class="center">PÚBLICO</td>
 				<td class="check-cell">X</td>
 			</tr>
-			<tr>
+			<tr class="row-access">
 				<td class="center">CONSERVACIÓN</td>
 				<td class="check-cell"></td>
 				<td class="center">N° DE FOJAS</td>
 				<td class="small-value">{{ N° FOJAS }}</td>
 			</tr>
-			<tr>
+			<tr class="row-final">
 				<td class="label">PLAZO DE CONSERVACIÓN</td>
 				<td class="small-value">20</td>
 				<td class="center">DESTINO FINAL</td>
