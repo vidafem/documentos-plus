@@ -434,7 +434,6 @@ export default function BasesPartesModule({ sourceTable, title }: BasesPartesMod
       soporte: toText(row.soporte),
       ubicacion: toText(row.ubicacion),
       observaciones: toText(row.observaciones),
-      created_at: toText(row.created_at),
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(excelRows);
@@ -453,7 +452,6 @@ export default function BasesPartesModule({ sourceTable, title }: BasesPartesMod
       { wch: 12 },
       { wch: 18 },
       { wch: 24 },
-      { wch: 20 },
     ];
 
     const range = XLSX.utils.decode_range(worksheet["!ref"] || "A1");

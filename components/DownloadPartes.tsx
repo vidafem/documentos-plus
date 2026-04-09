@@ -76,7 +76,6 @@ export default function DownloadPartes() {
       soporte: item.soporte || "",
       ubicacion: item.ubicacion || "",
       observaciones: item.observaciones || "",
-      created_at: item.created_at || "",
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(excelData);
@@ -95,7 +94,6 @@ export default function DownloadPartes() {
       { wch: 12 },
       { wch: 18 },
       { wch: 24 },
-      { wch: 20 },
     ];
 
     const range = XLSX.utils.decode_range(worksheet["!ref"] || "A1");
