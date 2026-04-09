@@ -33,6 +33,7 @@ export default function DownloadModule() {
 
     const excelData = dataToExport.map(item => ({
       serie: item.serie || "",
+      "N° CAJA": item.n_caja || "",
       expediente: item.expediente || "",
       n_tomo: item.n_tomo || "",
       descripcion: item.descripcion || "",
@@ -51,6 +52,7 @@ export default function DownloadModule() {
 
     worksheet["!cols"] = [
       { wch: 24 },
+      { wch: 12 },
       { wch: 18 },
       { wch: 12 },
       { wch: 60 },
@@ -80,7 +82,7 @@ export default function DownloadModule() {
             color: { rgb: isHeader ? "FFFFFF" : "000000" },
           },
           alignment: {
-            horizontal: c === 3 || c === 10 ? "left" : "center",
+            horizontal: c === 4 || c === 11 ? "left" : "center",
             vertical: "center",
             wrapText: true,
           },

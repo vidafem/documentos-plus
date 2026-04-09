@@ -424,6 +424,7 @@ export default function BasesPartesModule({ sourceTable, title }: BasesPartesMod
 
     const excelRows = rows.map((row) => ({
       serie: toText(row.serie),
+      "N° CAJA": toText(row.n_caja),
       expediente: toText(row.expediente),
       n_tomo: toText(row.n_tomo),
       descripcion: toText(row.descripcion),
@@ -442,6 +443,7 @@ export default function BasesPartesModule({ sourceTable, title }: BasesPartesMod
 
     worksheet["!cols"] = [
       { wch: 24 },
+      { wch: 12 },
       { wch: 18 },
       { wch: 12 },
       { wch: 60 },
@@ -471,7 +473,7 @@ export default function BasesPartesModule({ sourceTable, title }: BasesPartesMod
             color: { rgb: isHeader ? "FFFFFF" : "000000" },
           },
           alignment: {
-            horizontal: c === 3 || c === 10 ? "left" : "center",
+            horizontal: c === 4 || c === 11 ? "left" : "center",
             vertical: "center",
             wrapText: true,
           },
