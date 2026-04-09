@@ -214,6 +214,9 @@ export default function BasesPartesModule({ sourceTable, title }: BasesPartesMod
     type: "success" | "error" | "info";
   } | null>(null);
   const [templateHtml, setTemplateHtml] = useState("");
+  const [campoMasivo, setCampoMasivo] = useState<"n_caja" | "n_tomo">("n_caja");
+  const [valorMasivo, setValorMasivo] = useState("");
+  const [actualizandoMasivo, setActualizandoMasivo] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -333,6 +336,52 @@ export default function BasesPartesModule({ sourceTable, title }: BasesPartesMod
   const resetResultados = () => {
     setRows([]);
     setFiltroAplicado(false);
+  };
+
+  const actualizarCampoMasivo = async () => {
+    if (!filtroAplicado || rows.length === 0) {
+      setNotification({ message: "Primero filtra datos para actualizar n_caja o n_tomo.", type: "info" });
+      return;
+    }
+
+    const valor = valorMasivo.trim();
+    if (!valor) {
+      setNotification({ message: "Ingresa el valor a aplicar.", type: "info" });
+      return;
+    }
+
+    const rowsConId = rows.filter((row) => row.id !== null && row.id !== undefined);
+    if (rowsConId.length === 0) {
+      setNotification({ message: "No se encontraron IDs válidos para actualizar.", type: "error" });
+      return;
+    }
+
+    setActualizandoMasivo(true);
+
+    try {
+      for (const row of rowsConId) {
+        const rowId = row.id as string | number;
+        const { error } = await supabase
+          .from(sourceTable)
+          .update({ [campoMasivo]: valor })
+          .eq("id", rowId);
+
+        if (error) {
+          throw new Error(error.message);
+        }
+      }
+
+      setRows((prev) => prev.map((row) => ({ ...row, [campoMasivo]: valor })));
+      setNotification({
+        message: `Se actualizó ${campoMasivo} en ${rowsConId.length} registro(s). Los cambios quedan guardados en la base.`,
+        type: "success",
+      });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Error desconocido";
+      setNotification({ message: `No se pudo actualizar en bloque: ${msg}`, type: "error" });
+    } finally {
+      setActualizandoMasivo(false);
+    }
   };
 
   const imprimirFormatoMensual = () => {
@@ -518,6 +567,41 @@ export default function BasesPartesModule({ sourceTable, title }: BasesPartesMod
               </button>
             </div>
           </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase font-bold tracking-[0.2em] text-cyan-200/80">Campo</label>
+              <select
+                value={campoMasivo}
+                onChange={(e) => setCampoMasivo(e.target.value as "n_caja" | "n_tomo")}
+                className="w-full rounded-xl border border-white/10 bg-black px-3 py-2 text-sm text-white outline-none"
+              >
+                <option value="n_caja" className="bg-black text-white">N° CAJA</option>
+                <option value="n_tomo" className="bg-black text-white">N° TOMO</option>
+              </select>
+            </div>
+
+            <div className="space-y-1 md:col-span-3">
+              <label className="text-[10px] uppercase font-bold tracking-[0.2em] text-cyan-200/80">Valor a aplicar</label>
+              <input
+                type="text"
+                value={valorMasivo}
+                onChange={(e) => setValorMasivo(e.target.value)}
+                className="w-full rounded-xl border border-white/10 bg-black px-3 py-2 text-sm text-white outline-none"
+                placeholder="Ejemplo: 12"
+              />
+            </div>
+
+            <div className="flex items-end md:col-span-2">
+              <button
+                onClick={() => void actualizarCampoMasivo()}
+                disabled={actualizandoMasivo || rows.length === 0 || !filtroAplicado}
+                className="w-full px-4 py-2 rounded-xl text-xs font-bold transition-all bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-50"
+              >
+                {actualizandoMasivo ? "Actualizando..." : "Actualizar en filtrados"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -566,6 +650,41 @@ export default function BasesPartesModule({ sourceTable, title }: BasesPartesMod
                 className="w-full px-4 py-2 rounded-xl text-xs font-bold transition-all bg-cyan-600 text-white hover:bg-cyan-500 disabled:opacity-50"
               >
                 {loading ? "Filtrando..." : "Filtrar total"}
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase font-bold tracking-[0.2em] text-cyan-200/80">Campo</label>
+              <select
+                value={campoMasivo}
+                onChange={(e) => setCampoMasivo(e.target.value as "n_caja" | "n_tomo")}
+                className="w-full rounded-xl border border-white/10 bg-black px-3 py-2 text-sm text-white outline-none"
+              >
+                <option value="n_caja" className="bg-black text-white">N° CAJA</option>
+                <option value="n_tomo" className="bg-black text-white">N° TOMO</option>
+              </select>
+            </div>
+
+            <div className="space-y-1 md:col-span-3">
+              <label className="text-[10px] uppercase font-bold tracking-[0.2em] text-cyan-200/80">Valor a aplicar</label>
+              <input
+                type="text"
+                value={valorMasivo}
+                onChange={(e) => setValorMasivo(e.target.value)}
+                className="w-full rounded-xl border border-white/10 bg-black px-3 py-2 text-sm text-white outline-none"
+                placeholder="Ejemplo: 12"
+              />
+            </div>
+
+            <div className="flex items-end md:col-span-2">
+              <button
+                onClick={() => void actualizarCampoMasivo()}
+                disabled={actualizandoMasivo || rows.length === 0 || !filtroAplicado}
+                className="w-full px-4 py-2 rounded-xl text-xs font-bold transition-all bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-50"
+              >
+                {actualizandoMasivo ? "Actualizando..." : "Actualizar en filtrados"}
               </button>
             </div>
           </div>
