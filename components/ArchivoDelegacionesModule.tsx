@@ -231,12 +231,32 @@ const encodeHtml = (value: string): string =>
 const replaceTemplateTokens = (template: string, values: Record<string, string>): string => {
   let html = template;
 
-  html = html.replace(/\{\{\s*DESCRIPCION\s*\}\}/g, encodeHtml(values.descripcion));
-  html = html.replace(/\{\{\s*N(?:°|&deg;)\s*DE\s*EXPEDIENTE\s*\}\}/g, encodeHtml(values.expediente));
-  html = html.replace(/\{\{\s*APERTURA\s*\}\}/g, encodeHtml(values.apertura));
-  html = html.replace(/\{\{\s*CIERRE\s*\}\}/g, encodeHtml(values.cierre));
-  html = html.replace(/\{\{\s*N(?:°|&deg;)\s*FOJAS\s*\}\}/g, encodeHtml(values.fojas));
-  html = html.replace(/\{\{\s*N(?:°|&deg;)\s*DE\s*TOMO\s*\}\}/g, encodeHtml(values.tomo));
+  const replaceMany = (patterns: RegExp[], value: string) => {
+    patterns.forEach((pattern) => {
+      html = html.replace(pattern, encodeHtml(value));
+    });
+  };
+
+  replaceMany([/\{\{\s*DESCRIPCION\s*\}\}/g], values.descripcion);
+  replaceMany(
+    [
+      /\{\{\s*N°\s*DE\s*EXPEDIENTE\s*\}\}/g,
+      /\{\{\s*N&deg;\s*DE\s*EXPEDIENTE\s*\}\}/g,
+      /\{\{\s*N(?:°|&deg;)\s*DE\s*EXPEDIENTE\s*\}\}/g,
+    ],
+    values.expediente
+  );
+  replaceMany([/\{\{\s*APERTURA\s*\}\}/g], values.apertura);
+  replaceMany([/\{\{\s*CIERRE\s*\}\}/g], values.cierre);
+  replaceMany([/\{\{\s*N°\s*FOJAS\s*\}\}/g, /\{\{\s*N&deg;\s*FOJAS\s*\}\}/g, /\{\{\s*N(?:°|&deg;)\s*FOJAS\s*\}\}/g], values.fojas);
+  replaceMany(
+    [
+      /\{\{\s*N°\s*DE\s*TOMO\s*\}\}/g,
+      /\{\{\s*N&deg;\s*DE\s*TOMO\s*\}\}/g,
+      /\{\{\s*N(?:°|&deg;)\s*DE\s*TOMO\s*\}\}/g,
+    ],
+    values.tomo
+  );
 
   return html;
 };
@@ -564,15 +584,16 @@ export default function ArchivoDelegacionesModule() {
     container.style.left = "-100000px";
     container.style.top = "0";
     container.style.width = "1123px";
+    container.style.minHeight = "794px";
     container.style.background = "#ffffff";
     container.style.color = "#000000";
     container.style.fontFamily = "Arial, Helvetica, sans-serif";
-    container.style.padding = "12px";
+    container.style.padding = "0";
     container.style.boxSizing = "border-box";
     container.innerHTML = `
       <style>
         * { color: #000 !important; -webkit-text-fill-color: #000 !important; }
-        table { width: 100% !important; border-collapse: collapse; }
+        img { display: block; }
       </style>
       ${templateFilled}
     `;
