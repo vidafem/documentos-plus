@@ -1064,12 +1064,16 @@ export default function ArchivoDelegacionesModule() {
         <table className="w-full text-[10px] text-left border-collapse min-w-[62rem]">
           <thead className="sticky top-0 bg-[#01376d] text-white uppercase font-black z-10">
             <tr>
+              {showPdfActions && (
+                <th className="sticky left-0 z-20 bg-[#01376d] p-3 border-r border-black/30 whitespace-nowrap">
+                  PDF
+                </th>
+              )}
               {ARCHIVO_HEADERS.map((header) => (
                 <th key={header.label} className="p-3 border-r border-black/30 whitespace-nowrap">
                   {header.label}
                 </th>
               ))}
-              {showPdfActions && <th className="p-3 border-r border-black/30 whitespace-nowrap">PDF</th>}
             </tr>
           </thead>
           <tbody className="text-white/75">
@@ -1099,13 +1103,8 @@ export default function ArchivoDelegacionesModule() {
 
             {!loading && filtroAplicado && rows.map((row, idx) => (
               <tr key={`arch-${idx}`} className="border-t border-white/10 hover:bg-white/5">
-                {ARCHIVO_HEADERS.map((header) => (
-                  <td key={`${header.label}-${idx}`} className="p-3 whitespace-nowrap font-mono">
-                    {toText(readFirstValue(row, header.keys))}
-                  </td>
-                ))}
                 {showPdfActions && (
-                  <td className="p-3 whitespace-nowrap">
+                  <td className="sticky left-0 z-10 bg-[#021b35] p-3 whitespace-nowrap">
                     <button
                       onClick={() => void descargarFilaPdf(row)}
                       disabled={pdfAllLoading || !pdfTemplate || pdfRowBusyKey.length > 0}
@@ -1115,6 +1114,11 @@ export default function ArchivoDelegacionesModule() {
                     </button>
                   </td>
                 )}
+                {ARCHIVO_HEADERS.map((header) => (
+                  <td key={`${header.label}-${idx}`} className="p-3 whitespace-nowrap font-mono">
+                    {toText(readFirstValue(row, header.keys))}
+                  </td>
+                ))}
               </tr>
             ))}
           </tbody>
