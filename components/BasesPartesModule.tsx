@@ -33,6 +33,20 @@ const toText = (value: unknown): string => {
   return String(value);
 };
 
+const parseExpediente = (value: unknown): { seq: number; year: number } => {
+  const raw = toText(value).trim();
+  const match = raw.match(/^(\d+)-(\d{4})$/);
+  if (!match) {
+    return { seq: Number.MAX_SAFE_INTEGER, year: Number.MAX_SAFE_INTEGER };
+  }
+  const seq = Number(match[1]);
+  const year = Number(match[2]);
+  return {
+    seq: Number.isFinite(seq) ? seq : Number.MAX_SAFE_INTEGER,
+    year: Number.isFinite(year) ? year : Number.MAX_SAFE_INTEGER,
+  };
+};
+
 const normalizeDate = (value: string): string => {
   const raw = value.trim();
   if (!raw) return "";
@@ -155,6 +169,34 @@ const getMonthDateRange = (year: string, month: string) => {
   return { firstDay, lastDay };
 };
 
+const sortRowsByFechaAndExpediente = (rows: GenericRow[]): GenericRow[] => {
+  const copy = [...rows];
+
+  copy.sort((a, b) => {
+    const fechaA = normalizeDate(toText(a.fecha_cierre));
+    const fechaB = normalizeDate(toText(b.fecha_cierre));
+
+    if (fechaA !== fechaB) {
+      return fechaA.localeCompare(fechaB);
+    }
+
+    const expA = parseExpediente(a.expediente);
+    const expB = parseExpediente(b.expediente);
+
+    if (expA.year !== expB.year) {
+      return expA.year - expB.year;
+    }
+
+    if (expA.seq !== expB.seq) {
+      return expA.seq - expB.seq;
+    }
+
+    return toText(a.id).localeCompare(toText(b.id));
+  });
+
+  return copy;
+};
+
 export default function BasesPartesModule({ sourceTable, title }: BasesPartesModuleProps) {
   const [activeOption, setActiveOption] = useState<ActiveOption>("por_mes");
   const [rows, setRows] = useState<GenericRow[]>([]);
@@ -238,7 +280,7 @@ export default function BasesPartesModule({ sourceTable, title }: BasesPartesMod
       from += PAGE_SIZE;
     }
 
-    setRows(allRows);
+    setRows(sortRowsByFechaAndExpediente(allRows));
     setFiltroAplicado(true);
     setLoading(false);
   };
@@ -283,7 +325,7 @@ export default function BasesPartesModule({ sourceTable, title }: BasesPartesMod
       from += PAGE_SIZE;
     }
 
-    setRows(allRows);
+    setRows(sortRowsByFechaAndExpediente(allRows));
     setFiltroAplicado(true);
     setLoading(false);
   };

@@ -203,6 +203,7 @@ export default function FormPartesNuevo() {
           <div className="bg-indigo-500/10 px-3 py-1 rounded-lg border border-indigo-500/20 flex items-center gap-2">
             <span className="text-[8px] text-indigo-300 font-bold uppercase">Exp. Actual:</span>
             <span className="text-sm font-mono text-white leading-none">{String(nExpediente).padStart(4, "0")}</span>
+            <span className="text-[8px] text-indigo-200/80 font-bold">({anio || "----"})</span>
           </div>
         </div>
 
