@@ -725,19 +725,48 @@ export default function ArchivoDelegacionesModule() {
     return pdf.output("blob");
   };
 
-  const descargarFilaPdf = async (row: GenericRow) => {
-    const rowKey = `${getPdfNameBase(row)}_${Math.random().toString(36).slice(2, 8)}`;
-    setPdfRowBusyKey(rowKey);
-
-    try {
-      const blob = await createPdfBlobForRow(row);
-      downloadBlob(blob, `${getPdfNameBase(row)}.pdf`);
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : "Error desconocido";
-      setNotification({ message: `No se pudo generar PDF: ${msg}`, type: "error" });
-    } finally {
-      setPdfRowBusyKey("");
+  const imprimirFilaPdf = (row: GenericRow) => {
+    if (!pdfTemplate) {
+      setNotification({ message: "La plantilla de formato aún no se cargó.", type: "error" });
+      return;
     }
+
+    const templateFilled = replaceTemplateTokens(pdfTemplate, {
+      descripcion: toText(readFirstValue(row, ["DESCRIPCIÓN", "DESCRIPCION", "descripcion"])),
+      expediente: getExpedienteFromRow(row),
+      apertura: toDisplayDate(toText(readFirstValue(row, ["APERTURA", "FECHA_APERTURA", "fecha_apertura"]))),
+      cierre: toDisplayDate(getCierreFromRow(row)),
+      fojas: toText(readFirstValue(row, ["N°FOJAS", "N_FOJAS", "n_fojas"])),
+      tomo: toText(readFirstValue(row, ["N°_DE_TOMO", "N_DE_TOMO", "N_TOMO", "n_tomo"])),
+    });
+
+    const ventana = window.open("", "_blank", "width=1200,height=800");
+    if (!ventana) {
+      setNotification({ message: "No se pudo abrir la ventana de impresión. Verifica que no esté bloqueada.", type: "error" });
+      return;
+    }
+
+    ventana.document.write(`<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Carátula delegación</title>
+  <style>
+    @page { size: A4 landscape; margin: 6mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #fff; }
+  </style>
+</head>
+<body>
+  ${templateFilled}
+</body>
+</html>`);
+    ventana.document.close();
+    ventana.focus();
+    ventana.onload = () => {
+      ventana.print();
+      ventana.close();
+    };
   };
 
   const descargarTodosPdfZip = async () => {
@@ -1113,11 +1142,11 @@ export default function ArchivoDelegacionesModule() {
                 {showPdfActions && (
                   <td className="sticky left-0 z-10 bg-[#021b35] p-3 whitespace-nowrap">
                     <button
-                      onClick={() => void descargarFilaPdf(row)}
-                      disabled={pdfAllLoading || !pdfTemplate || pdfRowBusyKey.length > 0}
+                      onClick={() => imprimirFilaPdf(row)}
+                      disabled={pdfAllLoading || !pdfTemplate}
                       className="px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all bg-indigo-500/20 text-indigo-100 hover:bg-indigo-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Descargar PDF
+                      Imprimir PDF
                     </button>
                   </td>
                 )}
