@@ -7,6 +7,8 @@ interface ControlPanelProps {
   onDownload: () => void;
   onDelegacionesFlagrancia: () => void;
   showDelegacionesFlagrancia: boolean;
+  onParaFirmar?: () => void;
+  showParaFirmar?: boolean;
 }
 
 export default function ControlPanel({
@@ -16,6 +18,8 @@ export default function ControlPanel({
   onDownload,
   onDelegacionesFlagrancia,
   showDelegacionesFlagrancia,
+  onParaFirmar,
+  showParaFirmar,
 }: ControlPanelProps) {
   return (
     <div className="flex gap-2 p-1 bg-black/20 rounded-2xl w-fit border border-white/5">
@@ -31,6 +35,11 @@ export default function ControlPanel({
       {showDelegacionesFlagrancia && (
         <button onClick={onDelegacionesFlagrancia} className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${activeView === "delegaciones_flagrancia" ? "bg-orange-500/20 text-orange-300 shadow-lg" : "text-white/40 hover:text-orange-300"}`}>
           <span>📁</span> Delegaciones Flagrancia
+        </button>
+      )}
+      {showParaFirmar && onParaFirmar && (
+        <button onClick={onParaFirmar} className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${activeView === "para_firmar" ? "bg-purple-500/20 text-purple-300 shadow-lg" : "text-white/40 hover:text-purple-300"}`}>
+          <span>✍️</span> Para Firmar
         </button>
       )}
     </div>

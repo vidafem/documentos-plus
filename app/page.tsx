@@ -16,6 +16,7 @@ import DownloadPartes from "@/components/DownloadPartes";
 import DownloadFlagranciaModule from "@/components/DownloadFlagranciaModule";
 import DelegacionesFlagranciaModule from "@/components/DelegacionesFlagranciaModule";
 import ArchivoDelegacionesModule from "@/components/ArchivoDelegacionesModule";
+import ParaFirmarModule from "@/components/ParaFirmarModule";
 import Notification from "@/components/Notification";
 import { supabase } from "@/lib/supabaseClient";
 import { syncDelegacionesFromFlagranciaGlobal } from "@/components/DelegacionesFlagranciaModule";
@@ -23,7 +24,7 @@ import { syncArchDeleFromFlagranciaGlobal } from "@/components/ArchivoDelegacion
 
 // Definición estricta de tipos
 type ActiveModule = "delegaciones" | "delegaciones_diarias" | "partes" | "partes_viejos" | "archivo_delegaciones";
-type ViewMode = "add" | "edit" | "download" | "delegaciones_flagrancia";
+type ViewMode = "add" | "edit" | "download" | "delegaciones_flagrancia" | "para_firmar";
 
 export default function Home() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -330,6 +331,8 @@ export default function Home() {
               onDownload={() => setView("download")}
               onDelegacionesFlagrancia={() => setView("delegaciones_flagrancia")}
               showDelegacionesFlagrancia={activeModule === "delegaciones_diarias"}
+              onParaFirmar={() => setView("para_firmar")}
+              showParaFirmar={activeModule === "delegaciones_diarias"}
             />
           )}
 
@@ -372,6 +375,9 @@ export default function Home() {
             )}
             {view === "delegaciones_flagrancia" && activeModule === "delegaciones_diarias" && (
               <DelegacionesFlagranciaModule />
+            )}
+            {view === "para_firmar" && activeModule === "delegaciones_diarias" && (
+              <ParaFirmarModule />
             )}
           </div>
         </div>
