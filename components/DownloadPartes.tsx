@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import * as XLSX from "xlsx";
+import * as XLSX from "xlsx-js-style";
 import Notification from "./Notification";
 
 type ParteRegistro = {
@@ -64,32 +64,53 @@ export default function DownloadPartes() {
     const dataToExport = selectedIds.length > 0 ? registros.filter((r) => selectedIds.includes(r.id)) : registros;
 
     const excelData = dataToExport.map((item) => ({
-      "SERIE DOCUMENTAL": item.serie || "PROCEDIMIENTOS INVESTIGATIVOS",
-      "SUB-SERIE DOCUMENTAL": "POR DISPOSICIÓN JUDICIAL",
-      "Nº CAJA": item.n_caja,
-      "EXPEDIENTE": item.expediente,
-      "Nº TOMO": item.n_tomo,
-      "DESCRIPCIÓN DOCUMENTAL": item.descripcion,
-      "FECHA APERTURA": item.fecha_apertura,
-      "FECHA CIERRE": item.fecha_cierre,
-      "Nº FOJAS": item.n_fojas,
-      "DESTINO FINAL": item.destino_final,
-      "SOPORTE": item.soporte || "Físico",
-      "UBICACIÓN TOPOGRÁFICA": item.ubicacion || "",
-      "OBSERVACIONES": item.observaciones || "",
+      "N° CAJA": item.n_caja || "",
+      "N° DE EXPEDIENTE": item.expediente || "",
+      "N° DE TOMO": item.n_tomo || "",
+      "DESCRIPCIÓN": item.descripcion || "",
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(excelData);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "MATRIZ");
+    XLSX.utils.book_append_sheet(workbook, worksheet, "BASE_PARTES");
 
-    worksheet["!cols"] = [
-      { wch: 25 }, { wch: 25 }, { wch: 8 }, { wch: 25 }, { wch: 8 },
-      { wch: 60 }, { wch: 15 }, { wch: 15 }, { wch: 8 }, { wch: 15 },
-      { wch: 10 }, { wch: 20 }, { wch: 20 },
-    ];
+    worksheet["!cols"] = [{ wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 80 }];
 
-    XLSX.writeFile(workbook, `MATRIZ_FLAGRANCIA_${new Date().getFullYear()}.xlsx`);
+    const range = XLSX.utils.decode_range(worksheet["!ref"] || "A1");
+    for (let r = range.s.r; r <= range.e.r; r += 1) {
+      for (let c = range.s.c; c <= range.e.c; c += 1) {
+        const cellAddress = XLSX.utils.encode_cell({ r, c });
+        if (!worksheet[cellAddress]) {
+          worksheet[cellAddress] = { t: "s", v: "" };
+        }
+
+        const isHeader = r === 0;
+        worksheet[cellAddress].s = {
+          font: {
+            name: "Arial",
+            sz: isHeader ? 11 : 10,
+            bold: isHeader,
+            color: { rgb: isHeader ? "FFFFFF" : "000000" },
+          },
+          alignment: {
+            horizontal: c === 3 ? "left" : "center",
+            vertical: "center",
+            wrapText: true,
+          },
+          fill: {
+            fgColor: { rgb: isHeader ? "01376D" : "FFFFFF" },
+          },
+          border: {
+            top: { style: "thin", color: { rgb: "000000" } },
+            bottom: { style: "thin", color: { rgb: "000000" } },
+            left: { style: "thin", color: { rgb: "000000" } },
+            right: { style: "thin", color: { rgb: "000000" } },
+          },
+        };
+      }
+    }
+
+    XLSX.writeFile(workbook, `BASE_PARTES_${new Date().getFullYear()}.xlsx`);
   };
 
   return (

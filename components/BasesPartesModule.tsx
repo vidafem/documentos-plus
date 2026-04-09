@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import * as XLSX from "xlsx-js-style";
 import { supabase } from "@/lib/supabaseClient";
 import Notification from "./Notification";
 
@@ -197,6 +198,37 @@ const sortRowsByFechaAndExpediente = (rows: GenericRow[]): GenericRow[] => {
   return copy;
 };
 
+const getMostFrequentTomo = (rows: GenericRow[]): string => {
+  const counts = new Map<string, number>();
+  const firstOrder: string[] = [];
+
+  for (const row of rows) {
+    const value = toText(row.n_tomo).trim();
+    if (!value) continue;
+
+    if (!counts.has(value)) {
+      counts.set(value, 0);
+      firstOrder.push(value);
+    }
+    counts.set(value, (counts.get(value) || 0) + 1);
+  }
+
+  if (counts.size === 0) return "1";
+
+  let best = firstOrder[0];
+  let bestCount = counts.get(best) || 0;
+
+  for (const value of firstOrder) {
+    const count = counts.get(value) || 0;
+    if (count > bestCount) {
+      best = value;
+      bestCount = count;
+    }
+  }
+
+  return best;
+};
+
 export default function BasesPartesModule({ sourceTable, title }: BasesPartesModuleProps) {
   const [activeOption, setActiveOption] = useState<ActiveOption>("por_mes");
   const [rows, setRows] = useState<GenericRow[]>([]);
@@ -384,6 +416,63 @@ export default function BasesPartesModule({ sourceTable, title }: BasesPartesMod
     }
   };
 
+  const descargarExcelFormato = () => {
+    if (rows.length === 0) {
+      setNotification({ message: "No hay datos filtrados para exportar.", type: "info" });
+      return;
+    }
+
+    const excelRows = rows.map((row) => ({
+      "N° CAJA": toText(row.n_caja),
+      "N° DE EXPEDIENTE": toText(row.expediente),
+      "N° DE TOMO": toText(row.n_tomo),
+      "DESCRIPCIÓN": toText(row.descripcion),
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(excelRows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "BASE_PARTES");
+
+    worksheet["!cols"] = [{ wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 80 }];
+
+    const range = XLSX.utils.decode_range(worksheet["!ref"] || "A1");
+    for (let r = range.s.r; r <= range.e.r; r += 1) {
+      for (let c = range.s.c; c <= range.e.c; c += 1) {
+        const cellAddress = XLSX.utils.encode_cell({ r, c });
+        if (!worksheet[cellAddress]) {
+          worksheet[cellAddress] = { t: "s", v: "" };
+        }
+
+        const isHeader = r === 0;
+        worksheet[cellAddress].s = {
+          font: {
+            name: "Arial",
+            sz: isHeader ? 11 : 10,
+            bold: isHeader,
+            color: { rgb: isHeader ? "FFFFFF" : "000000" },
+          },
+          alignment: {
+            horizontal: c === 3 ? "left" : "center",
+            vertical: "center",
+            wrapText: true,
+          },
+          fill: {
+            fgColor: { rgb: isHeader ? "01376D" : "FFFFFF" },
+          },
+          border: {
+            top: { style: "thin", color: { rgb: "000000" } },
+            bottom: { style: "thin", color: { rgb: "000000" } },
+            left: { style: "thin", color: { rgb: "000000" } },
+            right: { style: "thin", color: { rgb: "000000" } },
+          },
+        };
+      }
+    }
+
+    const stamp = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(workbook, `BASE_PARTES_${title.toUpperCase().replace(/\s+/g, "_")}_${stamp}.xlsx`);
+  };
+
   const imprimirFormatoMensual = () => {
     if (rows.length === 0) {
       setNotification({ message: "No hay datos para imprimir.", type: "info" });
@@ -427,10 +516,7 @@ export default function BasesPartesModule({ sourceTable, title }: BasesPartesMod
       return Number.isFinite(parsed) ? acc + parsed : acc;
     }, 0);
 
-    const tomo = (() => {
-      const first = rows.find((row) => toText(row.n_tomo).trim().length > 0);
-      return first ? toText(first.n_tomo).trim() : "1";
-    })();
+    const tomo = getMostFrequentTomo(rows);
 
     const html = replacePartesTemplateTokens(templateHtml, {
       descripcion: "PARTES POLICIALES DE DETENCIONES Y APREHENSIONES EN DELITO FLAGRANTE",
@@ -492,6 +578,12 @@ export default function BasesPartesModule({ sourceTable, title }: BasesPartesMod
           }`}
         >
           2.- Base total
+        </button>
+        <button
+          onClick={descargarExcelFormato}
+          className="px-4 py-2 rounded-xl text-xs font-bold transition-all bg-emerald-600 text-white hover:bg-emerald-500"
+        >
+          Descargar Excel Formato
         </button>
         <button
           onClick={imprimirFormatoMensual}
