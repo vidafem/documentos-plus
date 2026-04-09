@@ -95,65 +95,76 @@ export default function ParaFirmarModule() {
   <title>Para Firmar - Delegaciones</title>
   <style>
     @page {
-      size: A4 landscape;
-      margin: 15mm 10mm;
+      size: A4 portrait;
+      margin: 12mm 8mm;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: Arial, sans-serif;
-      font-size: 9px;
+      font-size: 7px;
       color: #000;
     }
     .print-header {
       text-align: center;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
     .print-header h1 {
-      font-size: 14px;
+      font-size: 12px;
       font-weight: bold;
       text-transform: uppercase;
       letter-spacing: 1px;
     }
     .print-header p {
-      font-size: 10px;
+      font-size: 9px;
       color: #333;
       margin-top: 2px;
     }
     table {
       width: 100%;
       border-collapse: collapse;
-      margin-top: 6px;
+      margin-top: 5px;
+      table-layout: fixed;
     }
+    col.col-num    { width: 18px; }
+    col.col-fecha  { width: 22mm; }
+    col.col-if     { width: 26mm; }
+    col.col-det    { width: 38mm; }
+    col.col-fiscal { width: 33mm; }
+    col.col-unidad { width: 30mm; }
+    col.col-perito { width: 22mm; }
+    col.col-firma  { width: 22mm; }
     thead tr {
       background-color: #1a3a5c;
       color: #fff;
     }
     thead th {
       border: 1px solid #000;
-      padding: 4px 5px;
+      padding: 3px 2px;
       text-align: center;
-      font-size: 8.5px;
+      font-size: 7px;
       font-weight: bold;
       text-transform: uppercase;
+      overflow: hidden;
+      word-break: break-word;
     }
     tbody tr:nth-child(even) {
       background-color: #f0f4f8;
     }
     tbody td {
       border: 1px solid #555;
-      padding: 3px 5px;
-      font-size: 8.5px;
+      padding: 2px 3px;
+      font-size: 7px;
       vertical-align: middle;
+      overflow: hidden;
+      word-break: break-word;
     }
     .td-firma {
-      width: 40mm;
-      min-width: 40mm;
-      height: 14mm;
+      height: 12mm;
       border: 2px solid #000 !important;
     }
-    .num-col { text-align: center; width: 22px; }
-    .fecha-col { text-align: center; white-space: nowrap; }
-    .if-col { text-align: center; white-space: nowrap; }
+    .num-col  { text-align: center; }
+    .fecha-col { text-align: center; }
+    .if-col   { text-align: center; }
   </style>
 </head>
 <body>
@@ -264,6 +275,16 @@ export default function ParaFirmarModule() {
             <p>Período: {labelDesde} al {labelHasta}</p>
           </div>
           <table>
+            <colgroup>
+              <col className="col-num" />
+              <col className="col-fecha" />
+              <col className="col-if" />
+              <col className="col-det" />
+              <col className="col-fiscal" />
+              <col className="col-unidad" />
+              <col className="col-perito" />
+              <col className="col-firma" />
+            </colgroup>
             <thead>
               <tr>
                 <th className="num-col">#</th>
