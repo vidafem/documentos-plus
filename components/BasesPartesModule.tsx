@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import Notification from "./Notification";
 
@@ -33,6 +33,108 @@ const toText = (value: unknown): string => {
   return String(value);
 };
 
+const normalizeDate = (value: string): string => {
+  const raw = value.trim();
+  if (!raw) return "";
+  const normalized = raw.replace(/\//g, "-");
+  const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return "";
+  return `${match[1]}-${match[2]}-${match[3]}`;
+};
+
+const encodeHtml = (value: string): string =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const replacePartesTemplateTokens = (
+  template: string,
+  values: {
+    descripcion: string;
+    expediente: string;
+    apertura: string;
+    cierre: string;
+    fojas: string;
+    tomo: string;
+  }
+): string => {
+  let html = template;
+
+  const encoded = {
+    descripcion: encodeHtml(values.descripcion),
+    expediente: encodeHtml(values.expediente),
+    apertura: encodeHtml(values.apertura),
+    cierre: encodeHtml(values.cierre),
+    fojas: encodeHtml(values.fojas),
+    tomo: encodeHtml(values.tomo),
+  };
+
+  const replaceLiteral = (variants: string[], value: string) => {
+    variants.forEach((variant) => {
+      html = html.split(variant).join(value);
+    });
+  };
+
+  const replaceMany = (patterns: RegExp[], value: string) => {
+    patterns.forEach((pattern) => {
+      html = html.replace(pattern, value);
+    });
+  };
+
+  replaceLiteral(["{{DESCRIPCION}}", "{{ DESCRIPCION }}", "{{descripcion}}", "{{ descripcion }}"], encoded.descripcion);
+  replaceMany([/\{\{\s*DESCRIPCION\s*\}\}/gi], encoded.descripcion);
+
+  replaceLiteral(
+    [
+      "{{N° DE EXPEDIENTE}}",
+      "{{ N° DE EXPEDIENTE }}",
+      "{{Nº DE EXPEDIENTE}}",
+      "{{ Nº DE EXPEDIENTE }}",
+      "{{N&deg; DE EXPEDIENTE}}",
+      "{{ N&deg; DE EXPEDIENTE }}",
+      "{{N&#176; DE EXPEDIENTE}}",
+      "{{ N&#176; DE EXPEDIENTE }}",
+    ],
+    encoded.expediente
+  );
+  replaceMany(
+    [
+      /\{\{\s*N°\s*DE\s*EXPEDIENTE\s*\}\}/g,
+      /\{\{\s*Nº\s*DE\s*EXPEDIENTE\s*\}\}/g,
+      /\{\{\s*N&deg;\s*DE\s*EXPEDIENTE\s*\}\}/g,
+      /\{\{\s*N&#176;\s*DE\s*EXPEDIENTE\s*\}\}/g,
+      /\{\{\s*N(?:°|&deg;)\s*DE\s*EXPEDIENTE\s*\}\}/g,
+    ],
+    encoded.expediente
+  );
+
+  replaceLiteral(["{{APERTURA}}", "{{ APERTURA }}", "{{apertura}}", "{{ apertura }}"], encoded.apertura);
+  replaceMany([/\{\{\s*APERTURA\s*\}\}/gi], encoded.apertura);
+
+  replaceLiteral(["{{CIERRE}}", "{{ CIERRE }}", "{{cierre}}", "{{ cierre }}"], encoded.cierre);
+  replaceMany([/\{\{\s*CIERRE\s*\}\}/gi], encoded.cierre);
+
+  replaceLiteral(["{{N° FOJAS}}", "{{ N° FOJAS }}", "{{N&deg; FOJAS}}", "{{ N&deg; FOJAS }}"], encoded.fojas);
+  replaceMany([/\{\{\s*N°\s*FOJAS\s*\}\}/g, /\{\{\s*N&deg;\s*FOJAS\s*\}\}/g, /\{\{\s*N&#176;\s*FOJAS\s*\}\}/g], encoded.fojas);
+
+  replaceLiteral(["{{N° DE TOMO}}", "{{ N° DE TOMO }}", "{{N&deg; DE TOMO}}", "{{ N&deg; DE TOMO }}"], encoded.tomo);
+  replaceMany(
+    [
+      /\{\{\s*N°\s*DE\s*TOMO\s*\}\}/g,
+      /\{\{\s*Nº\s*DE\s*TOMO\s*\}\}/g,
+      /\{\{\s*N&deg;\s*DE\s*TOMO\s*\}\}/g,
+      /\{\{\s*N&#176;\s*DE\s*TOMO\s*\}\}/g,
+      /\{\{\s*N(?:°|&deg;)\s*DE\s*TOMO\s*\}\}/g,
+    ],
+    encoded.tomo
+  );
+
+  return html;
+};
+
 const getMonthDateRange = (year: string, month: string) => {
   if (!year || !month) return null;
   const monthNum = Number(month);
@@ -62,6 +164,31 @@ export default function BasesPartesModule({ sourceTable, title }: BasesPartesMod
     message: string;
     type: "success" | "error" | "info";
   } | null>(null);
+  const [templateHtml, setTemplateHtml] = useState("");
+
+  useEffect(() => {
+    let active = true;
+
+    const cargarTemplate = async () => {
+      try {
+        const response = await fetch("/formatos/formato_partes.html", { cache: "no-store" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const html = await response.text();
+        if (active) setTemplateHtml(html);
+      } catch {
+        if (active) {
+          setTemplateHtml("");
+          setNotification({ message: "No se pudo cargar el template formato_partes.html", type: "error" });
+        }
+      }
+    };
+
+    void cargarTemplate();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const aniosDisponibles = useMemo(() => {
     const currentYear = new Date().getFullYear();
@@ -159,94 +286,62 @@ export default function BasesPartesModule({ sourceTable, title }: BasesPartesMod
     setFiltroAplicado(false);
   };
 
-  const imprimirListado = () => {
+  const imprimirFormatoMensual = () => {
     if (rows.length === 0) {
       setNotification({ message: "No hay datos para imprimir.", type: "info" });
       return;
     }
 
-    const periodo = activeOption === "por_mes"
-      ? `Mes: ${mesFiltro || "-"} / Año: ${anioFiltro || "-"}`
-      : `Desde: ${fechaInicio || "-"}  Hasta: ${fechaFin || "-"}`;
+    if (activeOption !== "por_mes") {
+      setNotification({ message: "Este formato se imprime por mes. Usa la opción Base por mes.", type: "info" });
+      return;
+    }
 
-    const tableHead = TABLE_HEADERS.map((h) => `<th>${h.label}</th>`).join("");
-    const tableBody = rows
-      .map((row) => {
-        const cols = TABLE_HEADERS.map((h) => `<td>${toText(row[h.key])}</td>`).join("");
-        return `<tr>${cols}</tr>`;
-      })
-      .join("");
+    if (!templateHtml.trim()) {
+      setNotification({ message: "No se encontró el template formato_partes.html para imprimir.", type: "error" });
+      return;
+    }
 
-    const html = `<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8" />
-  <title>${title} - Bases Partes</title>
-  <style>
-    @page {
-      size: A4 landscape;
-      margin: 10mm;
+    const normalizedRows = rows
+      .map((row) => ({
+        ...row,
+        _fechaCierreNorm: normalizeDate(toText(row.fecha_cierre)),
+      }))
+      .filter((row) => row._fechaCierreNorm)
+      .sort((a, b) => String(a._fechaCierreNorm).localeCompare(String(b._fechaCierreNorm)));
+
+    if (normalizedRows.length === 0) {
+      setNotification({ message: "No hay fechas de cierre válidas para construir el formato mensual.", type: "info" });
+      return;
     }
-    * { box-sizing: border-box; }
-    body {
-      font-family: Arial, sans-serif;
-      margin: 0;
-      color: #111;
-      font-size: 8px;
-    }
-    .header {
-      text-align: center;
-      margin-bottom: 8px;
-    }
-    .header h1 {
-      margin: 0;
-      font-size: 14px;
-      text-transform: uppercase;
-    }
-    .header p {
-      margin: 2px 0 0;
-      font-size: 9px;
-      color: #333;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      table-layout: fixed;
-    }
-    th, td {
-      border: 1px solid #333;
-      padding: 3px 4px;
-      vertical-align: top;
-      word-break: break-word;
-    }
-    th {
-      background: #1e3a5f;
-      color: #fff;
-      font-size: 7px;
-      text-transform: uppercase;
-      text-align: center;
-    }
-    tr:nth-child(even) td {
-      background: #f4f7fb;
-    }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <h1>${title} - Bases Partes</h1>
-    <p>${periodo}</p>
-    <p>Total registros: ${rows.length}</p>
-  </div>
-  <table>
-    <thead>
-      <tr>${tableHead}</tr>
-    </thead>
-    <tbody>
-      ${tableBody}
-    </tbody>
-  </table>
-</body>
-</html>`;
+
+    const fechaApertura = String(normalizedRows[0]._fechaCierreNorm);
+    const fechaCierre = String(normalizedRows[normalizedRows.length - 1]._fechaCierreNorm);
+
+    const monthFromFilter = mesFiltro ? Number(mesFiltro) : NaN;
+    const monthFromFirstRow = Number(fechaApertura.slice(5, 7));
+    const expedienteMensual = Number.isFinite(monthFromFilter) && monthFromFilter > 0 ? monthFromFilter : monthFromFirstRow;
+
+    const totalFojas = rows.reduce((acc, row) => {
+      const raw = toText(row.n_fojas).trim();
+      if (!raw) return acc;
+      const parsed = Number(raw.replace(/,/g, ""));
+      return Number.isFinite(parsed) ? acc + parsed : acc;
+    }, 0);
+
+    const tomo = (() => {
+      const first = rows.find((row) => toText(row.n_tomo).trim().length > 0);
+      return first ? toText(first.n_tomo).trim() : "1";
+    })();
+
+    const html = replacePartesTemplateTokens(templateHtml, {
+      descripcion: "PARTES POLICIALES DE DETENCIONES Y APREHENSIONES EN DELITO FLAGRANTE",
+      expediente: String(expedienteMensual || ""),
+      apertura: fechaApertura,
+      cierre: fechaCierre,
+      fojas: String(totalFojas),
+      tomo,
+    });
 
     const ventana = window.open("", "_blank", "width=1200,height=800");
     if (!ventana) {
@@ -301,10 +396,10 @@ export default function BasesPartesModule({ sourceTable, title }: BasesPartesMod
           2.- Base total
         </button>
         <button
-          onClick={imprimirListado}
+          onClick={imprimirFormatoMensual}
           className="px-4 py-2 rounded-xl text-xs font-bold transition-all bg-indigo-600 text-white hover:bg-indigo-500"
         >
-          Imprimir listado
+          Imprimir formato mensual
         </button>
       </div>
 
