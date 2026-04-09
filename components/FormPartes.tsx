@@ -3,6 +3,24 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import Notification from "./Notification";
 
+const normalizeYearInput = (value: string) => value.replace(/\D/g, "").slice(0, 4);
+const normalizeUpper = (value: string) => value.toUpperCase();
+const formatExpediente = (sequence: number, year: string) => `${String(sequence).padStart(4, "0")}-${year}`;
+
+const getSequenceFromExpediente = (expediente: string, year: string): number => {
+  const match = expediente.trim().match(/^(\d{1,})-(\d{4})$/);
+  if (!match) return 0;
+  if (match[2] !== year) return 0;
+  const sequence = Number(match[1]);
+  return Number.isFinite(sequence) ? sequence : 0;
+};
+
+const normalizeDetenidosForSave = (value: string): string =>
+  normalizeUpper(value)
+    .replace(/\s*,\s*/g, ", ")
+    .replace(/\s+/g, " ")
+    .trim();
+
 export default function FormPartes() {
   const COL_DELITO_CANDIDATAS = [
     "DELITO_TIPIFICADO_EN_DELEGACION",
@@ -27,33 +45,59 @@ export default function FormPartes() {
   const [fojas, setFojas] = useState("");
   const [sugerencias, setSugerencias] = useState<{ delito: string }[]>([]);
 
-  // 1. ANALIZAR DB PARA SIGUIENTE EXPEDIENTE
-  const obtenerSiguienteExpediente = async () => {
-    const { data } = await supabase
+  const obtenerSiguienteExpedientePorAnio = async (anioSeleccionado: string) => {
+    if (anioSeleccionado.length !== 4) {
+      setNExpediente(1);
+      return;
+    }
+
+    const { data, error } = await supabase
       .from("partes_viejas")
       .select("expediente")
+      .like("expediente", `%-${anioSeleccionado}`)
       .order("created_at", { ascending: false })
-      .limit(1);
+      .limit(5000);
 
-    if (data && data.length > 0) {
-      const ultimo = parseInt(data[0].expediente);
-      setNExpediente(isNaN(ultimo) ? 1 : ultimo + 1);
+    if (error) {
+      setNExpediente(1);
+      return;
     }
+
+    const maxSequence = (data || []).reduce((acc, row) => {
+      const value = String(row.expediente || "");
+      const seq = getSequenceFromExpediente(value, anioSeleccionado);
+      return seq > acc ? seq : acc;
+    }, 0);
+
+    setNExpediente(maxSequence + 1);
   };
 
   useEffect(() => {
-    obtenerSiguienteExpediente();
-  }, []);
+    let active = true;
+
+    const cargar = async () => {
+      const anioNormalizado = normalizeYearInput(anio);
+      if (!active) return;
+      await obtenerSiguienteExpedientePorAnio(anioNormalizado);
+    };
+
+    void cargar();
+
+    return () => {
+      active = false;
+    };
+  }, [anio]);
 
   // 2. BUSCADOR DE DELITOS
   const buscarDelitos = async (texto: string) => {
-    setDelito(texto);
-    if (texto.length < 3) { setSugerencias([]); return; }
+    const textoUpper = normalizeUpper(texto);
+    setDelito(textoUpper);
+    if (textoUpper.length < 3) { setSugerencias([]); return; }
     for (const col of COL_DELITO_CANDIDATAS) {
       const { data, error } = await supabase
         .from("delitos")
         .select(col)
-        .ilike(col, `%${texto}%`)
+        .ilike(col, `%${textoUpper}%`)
         .limit(5);
 
       if (error) {
@@ -64,7 +108,7 @@ export default function FormPartes() {
       const normalizadas = filas
         .map((row) => {
           const registro = (row && typeof row === "object" ? row : {}) as Record<string, unknown>;
-          return { delito: String(registro[col] || "") };
+          return { delito: normalizeUpper(String(registro[col] || "")) };
         })
         .filter((row) => row.delito.trim().length > 0);
 
@@ -76,26 +120,50 @@ export default function FormPartes() {
     setSugerencias([]);
   };
 
-  const toTitleCase = (str: string) => {
-    return str.toLowerCase().replace(/\b\w/g, (l) => l.toUpperCase());
+  const handleDetenidosKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key !== " " || e.ctrlKey || e.metaKey || e.altKey) return;
+
+    const textarea = e.currentTarget;
+    const start = textarea.selectionStart ?? detenidos.length;
+    const end = textarea.selectionEnd ?? detenidos.length;
+    const beforeCaret = detenidos.slice(0, start);
+    const currentChunk = beforeCaret.split(",").pop() || "";
+    const words = currentChunk.trim().split(/\s+/).filter(Boolean);
+
+    if (words.length < 4) return;
+    if (beforeCaret.endsWith(" ") || beforeCaret.endsWith(",")) return;
+
+    e.preventDefault();
+    const updated = `${detenidos.slice(0, start)}, ${detenidos.slice(end)}`;
+    setDetenidos(normalizeUpper(updated));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
-    const codigoPPFull = `PP-${anio}${mesProceso}${diaCierre.padStart(2, '0')}${ppUltimos10}`;
-    const descFinal = `${codigoPPFull}; ${toTitleCase("DETENIDO")}: ${toTitleCase(detenidos)}; ${toTitleCase("DELITO")}: ${toTitleCase(delito)}`;
+    const anioRegistro = normalizeYearInput(anio);
+    if (anioRegistro.length !== 4) {
+      setIsLoading(false);
+      setNotification({ message: "El año debe tener 4 dígitos.", type: "error" });
+      return;
+    }
+
+    const expedienteFormateado = formatExpediente(nExpediente, anioRegistro);
+    const codigoPPFull = `PP-${anioRegistro}${mesProceso}${diaCierre.padStart(2, '0')}${ppUltimos10}`;
+    const detenidosNormalizados = normalizeDetenidosForSave(detenidos);
+    const delitoNormalizado = normalizeUpper(delito).trim();
+    const descFinal = `${codigoPPFull}; DETENIDO(S): ${detenidosNormalizados}; DELITO: ${delitoNormalizado}`;
 
     const registro = {
-      expediente: String(nExpediente),
+      expediente: expedienteFormateado,
       n_tomo: "1",
       descripcion: descFinal,
-      fecha_apertura: `${anio}-${mesProceso}-${diaApertura.padStart(2, '0')}`,
-      fecha_cierre: `${anio}-${mesProceso}-${diaCierre.padStart(2, '0')}`,
+      fecha_apertura: `${anioRegistro}-${mesProceso}-${diaApertura.padStart(2, '0')}`,
+      fecha_cierre: `${anioRegistro}-${mesProceso}-${diaCierre.padStart(2, '0')}`,
       n_fojas: fojas.substring(0, 3),
-      destino_final: "Eliminación",
-      soporte: "Fisico",
+      destino_final: "ELIMINACIÓN",
+      soporte: "FISICO",
       serie: "PROCEDIMIENTOS INVESTIGATIVOS"
     };
 
@@ -128,7 +196,7 @@ export default function FormPartes() {
           <h2 className="text-sm font-black text-indigo-400 italic uppercase">Partes Policiales</h2>
           <div className="bg-indigo-500/10 px-3 py-1 rounded-lg border border-indigo-500/20 flex items-center gap-2">
             <span className="text-[8px] text-indigo-300 font-bold uppercase">Exp. Actual:</span>
-            <span className="text-sm font-mono text-white leading-none">#{nExpediente}</span>
+            <span className="text-sm font-mono text-white leading-none">{String(nExpediente).padStart(4, "0")}</span>
           </div>
         </div>
 
@@ -138,7 +206,7 @@ export default function FormPartes() {
           <div className="grid grid-cols-4 gap-2 bg-black/60 p-2 rounded-xl border border-white/5">
             <div className="space-y-0.5">
               <label className="text-[8px] font-bold text-white/30 uppercase">Año</label>
-              <input type="text" value={anio} onChange={e => setAnio(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-lg py-1 text-xs text-center text-white font-bold outline-none focus:border-indigo-500" />
+              <input type="text" maxLength={4} value={anio} onChange={e => setAnio(normalizeYearInput(e.target.value))} className="w-full bg-white/5 border border-white/10 rounded-lg py-1 text-xs text-center text-white font-bold outline-none focus:border-indigo-500" />
             </div>
             <div className="space-y-0.5">
               <label className="text-[8px] font-bold text-white/30 uppercase">Mes</label>
@@ -174,7 +242,7 @@ export default function FormPartes() {
           {/* FILA 3: DETENIDOS */}
           <div className="space-y-0.5">
             <label className="text-[8px] font-bold text-white/30 uppercase">Detenidos</label>
-            <textarea required value={detenidos} onChange={e => setDetenidos(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white outline-none focus:border-indigo-500 h-14 resize-none custom-scrollbar" placeholder="Nombres de los detenidos..." />
+            <textarea required value={detenidos} onChange={e => setDetenidos(normalizeUpper(e.target.value))} onKeyDown={handleDetenidosKeyDown} className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white outline-none focus:border-indigo-500 h-14 resize-none custom-scrollbar" placeholder="NOMBRES DE LOS DETENIDOS..." />
           </div>
 
           {/* FILA 4: DELITO + FOJAS */}
@@ -185,7 +253,7 @@ export default function FormPartes() {
               {sugerencias.length > 0 && (
                 <ul className="absolute z-50 w-full bg-neutral-950 border border-white/10 rounded-xl mt-1 shadow-2xl max-h-32 overflow-y-auto custom-scrollbar">
                   {sugerencias.map((s, i) => (
-                    <li key={i} onClick={() => { setDelito(s.delito); setSugerencias([]); }} className="p-2 text-[10px] text-white hover:bg-indigo-600 cursor-pointer border-b border-white/5 last:border-none uppercase transition-colors">
+                    <li key={i} onClick={() => { setDelito(normalizeUpper(s.delito)); setSugerencias([]); }} className="p-2 text-[10px] text-white hover:bg-indigo-600 cursor-pointer border-b border-white/5 last:border-none uppercase transition-colors">
                       {s.delito}
                     </li>
                   ))}
