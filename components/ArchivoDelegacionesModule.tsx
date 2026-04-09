@@ -231,31 +231,68 @@ const encodeHtml = (value: string): string =>
 const replaceTemplateTokens = (template: string, values: Record<string, string>): string => {
   let html = template;
 
-  const replaceMany = (patterns: RegExp[], value: string) => {
-    patterns.forEach((pattern) => {
-      html = html.replace(pattern, encodeHtml(value));
+  const encoded = {
+    descripcion: encodeHtml(values.descripcion),
+    expediente: encodeHtml(values.expediente),
+    apertura: encodeHtml(values.apertura),
+    cierre: encodeHtml(values.cierre),
+    fojas: encodeHtml(values.fojas),
+    tomo: encodeHtml(values.tomo),
+  };
+
+  const replaceLiteral = (variants: string[], value: string) => {
+    variants.forEach((variant) => {
+      html = html.split(variant).join(value);
     });
   };
 
-  replaceMany([/\{\{\s*DESCRIPCION\s*\}\}/g], values.descripcion);
+  const replaceMany = (patterns: RegExp[], value: string) => {
+    patterns.forEach((pattern) => {
+      html = html.replace(pattern, value);
+    });
+  };
+
+  replaceLiteral(["{{DESCRIPCION}}", "{{ DESCRIPCION }}"], encoded.descripcion);
+  replaceMany([/\{\{\s*DESCRIPCION\s*\}\}/g], encoded.descripcion);
+  replaceLiteral(
+    [
+      "{{N° DE EXPEDIENTE}}",
+      "{{ N° DE EXPEDIENTE }}",
+      "{{Nº DE EXPEDIENTE}}",
+      "{{ Nº DE EXPEDIENTE }}",
+      "{{N&deg; DE EXPEDIENTE}}",
+      "{{ N&deg; DE EXPEDIENTE }}",
+      "{{N&#176; DE EXPEDIENTE}}",
+      "{{ N&#176; DE EXPEDIENTE }}",
+    ],
+    encoded.expediente
+  );
   replaceMany(
     [
       /\{\{\s*N°\s*DE\s*EXPEDIENTE\s*\}\}/g,
+      /\{\{\s*Nº\s*DE\s*EXPEDIENTE\s*\}\}/g,
       /\{\{\s*N&deg;\s*DE\s*EXPEDIENTE\s*\}\}/g,
+      /\{\{\s*N&#176;\s*DE\s*EXPEDIENTE\s*\}\}/g,
       /\{\{\s*N(?:°|&deg;)\s*DE\s*EXPEDIENTE\s*\}\}/g,
     ],
-    values.expediente
+    encoded.expediente
   );
-  replaceMany([/\{\{\s*APERTURA\s*\}\}/g], values.apertura);
-  replaceMany([/\{\{\s*CIERRE\s*\}\}/g], values.cierre);
-  replaceMany([/\{\{\s*N°\s*FOJAS\s*\}\}/g, /\{\{\s*N&deg;\s*FOJAS\s*\}\}/g, /\{\{\s*N(?:°|&deg;)\s*FOJAS\s*\}\}/g], values.fojas);
+  replaceLiteral(["{{APERTURA}}", "{{ APERTURA }}"], encoded.apertura);
+  replaceMany([/\{\{\s*APERTURA\s*\}\}/g], encoded.apertura);
+  replaceLiteral(["{{CIERRE}}", "{{ CIERRE }}"], encoded.cierre);
+  replaceMany([/\{\{\s*CIERRE\s*\}\}/g], encoded.cierre);
+  replaceLiteral(["{{N° FOJAS}}", "{{ N° FOJAS }}", "{{N&deg; FOJAS}}", "{{ N&deg; FOJAS }}"], encoded.fojas);
+  replaceMany([/\{\{\s*N°\s*FOJAS\s*\}\}/g, /\{\{\s*N&deg;\s*FOJAS\s*\}\}/g, /\{\{\s*N&#176;\s*FOJAS\s*\}\}/g, /\{\{\s*N(?:°|&deg;)\s*FOJAS\s*\}\}/g], encoded.fojas);
+  replaceLiteral(["{{N° DE TOMO}}", "{{ N° DE TOMO }}", "{{N&deg; DE TOMO}}", "{{ N&deg; DE TOMO }}"], encoded.tomo);
   replaceMany(
     [
       /\{\{\s*N°\s*DE\s*TOMO\s*\}\}/g,
+      /\{\{\s*Nº\s*DE\s*TOMO\s*\}\}/g,
       /\{\{\s*N&deg;\s*DE\s*TOMO\s*\}\}/g,
+      /\{\{\s*N&#176;\s*DE\s*TOMO\s*\}\}/g,
       /\{\{\s*N(?:°|&deg;)\s*DE\s*TOMO\s*\}\}/g,
     ],
-    values.tomo
+    encoded.tomo
   );
 
   return html;
@@ -640,10 +677,12 @@ export default function ArchivoDelegacionesModule() {
     );
 
     const canvas = await html2canvas(container, {
-      scale: 2,
+      scale: 3,
       useCORS: true,
       backgroundColor: "#ffffff",
       logging: false,
+      windowWidth: container.scrollWidth,
+      windowHeight: container.scrollHeight,
     });
 
     document.body.removeChild(container);
@@ -657,7 +696,24 @@ export default function ArchivoDelegacionesModule() {
     const imgData = canvas.toDataURL("image/png");
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
-    pdf.addImage(imgData, "PNG", 0, 0, pageWidth, pageHeight, undefined, "FAST");
+    const margin = 6;
+    const maxWidth = pageWidth - margin * 2;
+    const maxHeight = pageHeight - margin * 2;
+    const canvasRatio = canvas.width / canvas.height;
+    let renderWidth = maxWidth;
+    let renderHeight = renderWidth / canvasRatio;
+
+    if (renderHeight > maxHeight) {
+      renderHeight = maxHeight;
+      renderWidth = renderHeight * canvasRatio;
+    }
+
+    const offsetX = (pageWidth - renderWidth) / 2;
+    const offsetY = (pageHeight - renderHeight) / 2;
+
+    pdf.setFillColor(255, 255, 255);
+    pdf.rect(0, 0, pageWidth, pageHeight, "F");
+    pdf.addImage(imgData, "PNG", offsetX, offsetY, renderWidth, renderHeight, undefined, "FAST");
 
     return pdf.output("blob");
   };
