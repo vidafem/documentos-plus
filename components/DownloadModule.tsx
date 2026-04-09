@@ -32,17 +32,38 @@ export default function DownloadModule() {
     const dataToExport = selectedIds.length > 0 ? registros.filter(r => selectedIds.includes(r.id)) : registros;
 
     const excelData = dataToExport.map(item => ({
-      "N° CAJA": item.n_caja || "",
-      "N° DE EXPEDIENTE": item.expediente || "",
-      "N° DE TOMO": item.n_tomo || "",
-      "DESCRIPCIÓN": item.descripcion || ""
+      serie: item.serie || "",
+      expediente: item.expediente || "",
+      n_tomo: item.n_tomo || "",
+      descripcion: item.descripcion || "",
+      fecha_apertura: item.fecha_apertura || "",
+      fecha_cierre: item.fecha_cierre || "",
+      n_fojas: item.n_fojas || "",
+      destino_final: item.destino_final || "",
+      soporte: item.soporte || "",
+      ubicacion: item.ubicacion || "",
+      observaciones: item.observaciones || "",
+      created_at: item.created_at || ""
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(excelData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "BASE_PARTES_VIEJOS");
 
-    worksheet["!cols"] = [{ wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 80 }];
+    worksheet["!cols"] = [
+      { wch: 24 },
+      { wch: 18 },
+      { wch: 12 },
+      { wch: 60 },
+      { wch: 14 },
+      { wch: 14 },
+      { wch: 10 },
+      { wch: 16 },
+      { wch: 12 },
+      { wch: 18 },
+      { wch: 24 },
+      { wch: 20 },
+    ];
 
     const range = XLSX.utils.decode_range(worksheet["!ref"] || "A1");
     for (let r = range.s.r; r <= range.e.r; r += 1) {
@@ -61,7 +82,7 @@ export default function DownloadModule() {
             color: { rgb: isHeader ? "FFFFFF" : "000000" },
           },
           alignment: {
-            horizontal: c === 3 ? "left" : "center",
+            horizontal: c === 3 || c === 10 ? "left" : "center",
             vertical: "center",
             wrapText: true,
           },

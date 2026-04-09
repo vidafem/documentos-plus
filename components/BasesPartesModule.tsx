@@ -423,17 +423,38 @@ export default function BasesPartesModule({ sourceTable, title }: BasesPartesMod
     }
 
     const excelRows = rows.map((row) => ({
-      "N° CAJA": toText(row.n_caja),
-      "N° DE EXPEDIENTE": toText(row.expediente),
-      "N° DE TOMO": toText(row.n_tomo),
-      "DESCRIPCIÓN": toText(row.descripcion),
+      serie: toText(row.serie),
+      expediente: toText(row.expediente),
+      n_tomo: toText(row.n_tomo),
+      descripcion: toText(row.descripcion),
+      fecha_apertura: toText(row.fecha_apertura),
+      fecha_cierre: toText(row.fecha_cierre),
+      n_fojas: toText(row.n_fojas),
+      destino_final: toText(row.destino_final),
+      soporte: toText(row.soporte),
+      ubicacion: toText(row.ubicacion),
+      observaciones: toText(row.observaciones),
+      created_at: toText(row.created_at),
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(excelRows);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "BASE_PARTES");
 
-    worksheet["!cols"] = [{ wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 80 }];
+    worksheet["!cols"] = [
+      { wch: 24 },
+      { wch: 18 },
+      { wch: 12 },
+      { wch: 60 },
+      { wch: 14 },
+      { wch: 14 },
+      { wch: 10 },
+      { wch: 16 },
+      { wch: 12 },
+      { wch: 18 },
+      { wch: 24 },
+      { wch: 20 },
+    ];
 
     const range = XLSX.utils.decode_range(worksheet["!ref"] || "A1");
     for (let r = range.s.r; r <= range.e.r; r += 1) {
@@ -452,7 +473,7 @@ export default function BasesPartesModule({ sourceTable, title }: BasesPartesMod
             color: { rgb: isHeader ? "FFFFFF" : "000000" },
           },
           alignment: {
-            horizontal: c === 3 ? "left" : "center",
+            horizontal: c === 3 || c === 10 ? "left" : "center",
             vertical: "center",
             wrapText: true,
           },
