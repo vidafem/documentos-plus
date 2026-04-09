@@ -42,6 +42,13 @@ const normalizeDate = (value: string): string => {
   return `${match[1]}-${match[2]}-${match[3]}`;
 };
 
+const toDisplayDate = (value: string): string => {
+  const normalized = normalizeDate(value);
+  if (!normalized) return value;
+  const [year, month, day] = normalized.split("-");
+  return `${day}/${month}/${year}`;
+};
+
 const encodeHtml = (value: string): string =>
   value
     .replace(/&/g, "&amp;")
@@ -337,8 +344,8 @@ export default function BasesPartesModule({ sourceTable, title }: BasesPartesMod
     const html = replacePartesTemplateTokens(templateHtml, {
       descripcion: "PARTES POLICIALES DE DETENCIONES Y APREHENSIONES EN DELITO FLAGRANTE",
       expediente: String(expedienteMensual || ""),
-      apertura: fechaApertura,
-      cierre: fechaCierre,
+      apertura: toDisplayDate(fechaApertura),
+      cierre: toDisplayDate(fechaCierre),
       fojas: String(totalFojas),
       tomo,
     });

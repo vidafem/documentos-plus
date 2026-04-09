@@ -338,6 +338,13 @@ const getExpedienteFromRow = (row: GenericRow): string =>
 const getCierreFromRow = (row: GenericRow): string =>
   toText(readFirstValue(row, ["CIERRE", "FECHA_CIERRE", "fecha_cierre"]));
 
+const toDisplayDate = (value: string): string => {
+  const normalized = normalizeDateValue(value);
+  if (!normalized) return value;
+  const [year, month, day] = normalized.split("-");
+  return `${day}/${month}/${year}`;
+};
+
 const getPdfNameBase = (row: GenericRow): string => {
   const expediente = getExpedienteFromRow(row) || "SIN_EXPEDIENTE";
   const cierre = getCierreFromRow(row) || "SIN_CIERRE";
@@ -633,8 +640,8 @@ export default function ArchivoDelegacionesModule() {
     const templateFilled = replaceTemplateTokens(pdfTemplate, {
       descripcion: toText(readFirstValue(row, ["DESCRIPCIÓN", "DESCRIPCION", "descripcion"])),
       expediente: getExpedienteFromRow(row),
-      apertura: toText(readFirstValue(row, ["APERTURA", "FECHA_APERTURA", "fecha_apertura"])),
-      cierre: getCierreFromRow(row),
+      apertura: toDisplayDate(toText(readFirstValue(row, ["APERTURA", "FECHA_APERTURA", "fecha_apertura"]))),
+      cierre: toDisplayDate(getCierreFromRow(row)),
       fojas: toText(readFirstValue(row, ["N°FOJAS", "N_FOJAS", "n_fojas"])),
       tomo: toText(readFirstValue(row, ["N°_DE_TOMO", "N_DE_TOMO", "N_TOMO", "n_tomo"])),
     });
