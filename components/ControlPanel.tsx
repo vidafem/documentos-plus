@@ -7,6 +7,8 @@ interface ControlPanelProps {
   onDownload: () => void;
   onDelegacionesFlagrancia: () => void;
   showDelegacionesFlagrancia: boolean;
+  onBasesPartes?: () => void;
+  showBasesPartes?: boolean;
   onParaFirmar?: () => void;
   showParaFirmar?: boolean;
 }
@@ -18,6 +20,8 @@ export default function ControlPanel({
   onDownload,
   onDelegacionesFlagrancia,
   showDelegacionesFlagrancia,
+  onBasesPartes,
+  showBasesPartes,
   onParaFirmar,
   showParaFirmar,
 }: ControlPanelProps) {
@@ -32,6 +36,11 @@ export default function ControlPanel({
       <button onClick={onDownload} className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${activeView === "download" ? "bg-green-500/20 text-green-400 shadow-lg" : "text-white/40 hover:text-green-400"}`}>
         <span>📊</span> Reportes / Excel
       </button>
+      {showBasesPartes && onBasesPartes && (
+        <button onClick={onBasesPartes} className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${activeView === "bases_partes" ? "bg-cyan-500/20 text-cyan-300 shadow-lg" : "text-white/40 hover:text-cyan-300"}`}>
+          <span>🗂️</span> Bases Partes
+        </button>
+      )}
       {showDelegacionesFlagrancia && (
         <button onClick={onDelegacionesFlagrancia} className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${activeView === "delegaciones_flagrancia" ? "bg-orange-500/20 text-orange-300 shadow-lg" : "text-white/40 hover:text-orange-300"}`}>
           <span>📁</span> Delegaciones Flagrancia

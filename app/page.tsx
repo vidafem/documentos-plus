@@ -16,6 +16,7 @@ import DownloadPartes from "@/components/DownloadPartes";
 import DownloadFlagranciaModule from "@/components/DownloadFlagranciaModule";
 import DelegacionesFlagranciaModule from "@/components/DelegacionesFlagranciaModule";
 import ArchivoDelegacionesModule from "@/components/ArchivoDelegacionesModule";
+import BasesPartesModule from "@/components/BasesPartesModule";
 import ParaFirmarModule from "@/components/ParaFirmarModule";
 import Notification from "@/components/Notification";
 import { supabase } from "@/lib/supabaseClient";
@@ -24,7 +25,7 @@ import { syncArchDeleFromFlagranciaGlobal } from "@/components/ArchivoDelegacion
 
 // Definición estricta de tipos
 type ActiveModule = "delegaciones" | "delegaciones_diarias" | "partes" | "partes_viejos" | "archivo_delegaciones";
-type ViewMode = "add" | "edit" | "download" | "delegaciones_flagrancia" | "para_firmar";
+type ViewMode = "add" | "edit" | "download" | "delegaciones_flagrancia" | "para_firmar" | "bases_partes";
 
 export default function Home() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -331,6 +332,8 @@ export default function Home() {
               onDownload={() => setView("download")}
               onDelegacionesFlagrancia={() => setView("delegaciones_flagrancia")}
               showDelegacionesFlagrancia={activeModule === "delegaciones_diarias"}
+              onBasesPartes={() => setView("bases_partes")}
+              showBasesPartes={activeModule === "partes" || activeModule === "partes_viejos"}
               onParaFirmar={() => setView("para_firmar")}
               showParaFirmar={activeModule === "delegaciones_diarias"}
             />
@@ -378,6 +381,12 @@ export default function Home() {
             )}
             {view === "para_firmar" && activeModule === "delegaciones_diarias" && (
               <ParaFirmarModule />
+            )}
+            {view === "bases_partes" && activeModule === "partes" && (
+              <BasesPartesModule sourceTable="PARTES" title="Partes" />
+            )}
+            {view === "bases_partes" && activeModule === "partes_viejos" && (
+              <BasesPartesModule sourceTable="partes_viejas" title="Partes Viejos" />
             )}
           </div>
         </div>
