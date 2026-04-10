@@ -183,6 +183,28 @@ const getMonthDateRange = (year: string, month: string) => {
   return { firstDay, lastDay };
 };
 
+const MONTH_OPTIONS = [
+  { value: "01", label: "01 - Enero" },
+  { value: "02", label: "02 - Febrero" },
+  { value: "03", label: "03 - Marzo" },
+  { value: "04", label: "04 - Abril" },
+  { value: "05", label: "05 - Mayo" },
+  { value: "06", label: "06 - Junio" },
+  { value: "07", label: "07 - Julio" },
+  { value: "08", label: "08 - Agosto" },
+  { value: "09", label: "09 - Septiembre" },
+  { value: "10", label: "10 - Octubre" },
+  { value: "11", label: "11 - Noviembre" },
+  { value: "12", label: "12 - Diciembre" },
+] as const;
+
+const DAY_OPTIONS = Array.from({ length: 31 }, (_, idx) => String(idx + 1).padStart(2, "0"));
+
+const buildIsoDate = (year: string, month: string, day: string): string => {
+  if (!year || !month || !day) return "";
+  return `${year}-${month}-${day}`;
+};
+
 const sortRowsByFechaAndExpediente = (rows: GenericRow[]): GenericRow[] => {
   const copy = [...rows];
 
@@ -249,10 +271,18 @@ export default function BasesPartesModule({ sourceTable, title }: BasesPartesMod
   const [filtroAplicado, setFiltroAplicado] = useState(false);
 
   const [mesFiltro, setMesFiltro] = useState("");
-  const [anioFiltro, setAnioFiltro] = useState(String(new Date().getFullYear()));
+  const [anioFiltro, setAnioFiltro] = useState("");
 
-  const [fechaInicio, setFechaInicio] = useState("");
-  const [fechaFin, setFechaFin] = useState("");
+  const [aniosDisponibles, setAniosDisponibles] = useState<string[]>([]);
+  const [inicioYear, setInicioYear] = useState("");
+  const [inicioMonth, setInicioMonth] = useState("");
+  const [inicioDay, setInicioDay] = useState("");
+  const [finYear, setFinYear] = useState("");
+  const [finMonth, setFinMonth] = useState("");
+  const [finDay, setFinDay] = useState("");
+
+  const fechaInicio = useMemo(() => buildIsoDate(inicioYear, inicioMonth, inicioDay), [inicioYear, inicioMonth, inicioDay]);
+  const fechaFin = useMemo(() => buildIsoDate(finYear, finMonth, finDay), [finYear, finMonth, finDay]);
 
   const [notification, setNotification] = useState<{
     message: string;
@@ -287,11 +317,54 @@ export default function BasesPartesModule({ sourceTable, title }: BasesPartesMod
     };
   }, []);
 
-  const aniosDisponibles = useMemo(() => {
-    const currentYear = new Date().getFullYear();
-    const baseYear = 2020;
-    return Array.from({ length: currentYear - baseYear + 2 }, (_, idx) => String(currentYear + 1 - idx));
-  }, []);
+  useEffect(() => {
+    let active = true;
+
+    const loadYears = async () => {
+      const years = new Set<string>();
+      const PAGE_SIZE = 1000;
+      let from = 0;
+
+      while (true) {
+        const to = from + PAGE_SIZE - 1;
+        const { data, error } = await supabase
+          .from(sourceTable)
+          .select("fecha_cierre")
+          .not("fecha_cierre", "is", null)
+          .order("fecha_cierre", { ascending: false })
+          .range(from, to);
+
+        if (error) break;
+
+        const chunk = (data || []) as GenericRow[];
+        chunk.forEach((row) => {
+          const normalized = normalizeDate(toText(row.fecha_cierre));
+          const year = normalized.split("-")[0] || "";
+          if (/^\d{4}$/.test(year)) years.add(year);
+        });
+
+        if (chunk.length < PAGE_SIZE) break;
+        from += PAGE_SIZE;
+      }
+
+      const sorted = Array.from(years).sort((a, b) => Number(b) - Number(a));
+      const fallbackYear = String(new Date().getFullYear());
+      const finalYears = sorted.length > 0 ? sorted : [fallbackYear];
+
+      if (!active) return;
+      setAniosDisponibles(finalYears);
+      const defaultYear = finalYears[0];
+      setAnioFiltro((prev) => prev || defaultYear);
+      setInicioYear((prev) => prev || defaultYear);
+      setFinYear((prev) => prev || defaultYear);
+    };
+
+    void loadYears();
+
+    return () => {
+      active = false;
+    };
+  }, [sourceTable]);
 
   const filtrarPorMes = async () => {
     const range = getMonthDateRange(anioFiltro, mesFiltro);
@@ -656,18 +729,9 @@ export default function BasesPartesModule({ sourceTable, title }: BasesPartesMod
                 className="w-full rounded-xl border border-white/10 bg-black px-3 py-2 text-sm text-white outline-none"
               >
                 <option value="" className="bg-black text-white">Seleccionar</option>
-                <option value="01" className="bg-black text-white">01 - Enero</option>
-                <option value="02" className="bg-black text-white">02 - Febrero</option>
-                <option value="03" className="bg-black text-white">03 - Marzo</option>
-                <option value="04" className="bg-black text-white">04 - Abril</option>
-                <option value="05" className="bg-black text-white">05 - Mayo</option>
-                <option value="06" className="bg-black text-white">06 - Junio</option>
-                <option value="07" className="bg-black text-white">07 - Julio</option>
-                <option value="08" className="bg-black text-white">08 - Agosto</option>
-                <option value="09" className="bg-black text-white">09 - Septiembre</option>
-                <option value="10" className="bg-black text-white">10 - Octubre</option>
-                <option value="11" className="bg-black text-white">11 - Noviembre</option>
-                <option value="12" className="bg-black text-white">12 - Diciembre</option>
+                {MONTH_OPTIONS.map((month) => (
+                  <option key={month.value} value={month.value} className="bg-black text-white">{month.label}</option>
+                ))}
               </select>
             </div>
 
@@ -751,28 +815,92 @@ export default function BasesPartesModule({ sourceTable, title }: BasesPartesMod
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="space-y-1">
               <label className="text-[10px] uppercase font-bold tracking-[0.2em] text-cyan-200/80">Desde (fecha_cierre)</label>
-              <input
-                type="date"
-                value={fechaInicio}
-                onChange={(e) => {
-                  setFechaInicio(e.target.value);
-                  resetResultados();
-                }}
-                className="w-full rounded-xl border border-white/10 bg-black px-3 py-2 text-sm text-white outline-none"
-              />
+              <div className="grid grid-cols-3 gap-2">
+                <select
+                  value={inicioYear}
+                  onChange={(e) => {
+                    setInicioYear(e.target.value);
+                    resetResultados();
+                  }}
+                  className="w-full rounded-xl border border-white/10 bg-black px-2 py-2 text-sm text-white outline-none"
+                >
+                  <option value="" className="bg-black text-white">Año</option>
+                  {aniosDisponibles.map((year) => (
+                    <option key={`ini-year-${year}`} value={year} className="bg-black text-white">{year}</option>
+                  ))}
+                </select>
+                <select
+                  value={inicioMonth}
+                  onChange={(e) => {
+                    setInicioMonth(e.target.value);
+                    resetResultados();
+                  }}
+                  className="w-full rounded-xl border border-white/10 bg-black px-2 py-2 text-sm text-white outline-none"
+                >
+                  <option value="" className="bg-black text-white">Mes</option>
+                  {MONTH_OPTIONS.map((month) => (
+                    <option key={`ini-month-${month.value}`} value={month.value} className="bg-black text-white">{month.value}</option>
+                  ))}
+                </select>
+                <select
+                  value={inicioDay}
+                  onChange={(e) => {
+                    setInicioDay(e.target.value);
+                    resetResultados();
+                  }}
+                  className="w-full rounded-xl border border-white/10 bg-black px-2 py-2 text-sm text-white outline-none"
+                >
+                  <option value="" className="bg-black text-white">Día</option>
+                  {DAY_OPTIONS.map((day) => (
+                    <option key={`ini-day-${day}`} value={day} className="bg-black text-white">{day}</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div className="space-y-1">
               <label className="text-[10px] uppercase font-bold tracking-[0.2em] text-cyan-200/80">Hasta (fecha_cierre)</label>
-              <input
-                type="date"
-                value={fechaFin}
-                onChange={(e) => {
-                  setFechaFin(e.target.value);
-                  resetResultados();
-                }}
-                className="w-full rounded-xl border border-white/10 bg-black px-3 py-2 text-sm text-white outline-none"
-              />
+              <div className="grid grid-cols-3 gap-2">
+                <select
+                  value={finYear}
+                  onChange={(e) => {
+                    setFinYear(e.target.value);
+                    resetResultados();
+                  }}
+                  className="w-full rounded-xl border border-white/10 bg-black px-2 py-2 text-sm text-white outline-none"
+                >
+                  <option value="" className="bg-black text-white">Año</option>
+                  {aniosDisponibles.map((year) => (
+                    <option key={`fin-year-${year}`} value={year} className="bg-black text-white">{year}</option>
+                  ))}
+                </select>
+                <select
+                  value={finMonth}
+                  onChange={(e) => {
+                    setFinMonth(e.target.value);
+                    resetResultados();
+                  }}
+                  className="w-full rounded-xl border border-white/10 bg-black px-2 py-2 text-sm text-white outline-none"
+                >
+                  <option value="" className="bg-black text-white">Mes</option>
+                  {MONTH_OPTIONS.map((month) => (
+                    <option key={`fin-month-${month.value}`} value={month.value} className="bg-black text-white">{month.value}</option>
+                  ))}
+                </select>
+                <select
+                  value={finDay}
+                  onChange={(e) => {
+                    setFinDay(e.target.value);
+                    resetResultados();
+                  }}
+                  className="w-full rounded-xl border border-white/10 bg-black px-2 py-2 text-sm text-white outline-none"
+                >
+                  <option value="" className="bg-black text-white">Día</option>
+                  {DAY_OPTIONS.map((day) => (
+                    <option key={`fin-day-${day}`} value={day} className="bg-black text-white">{day}</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div className="space-y-1">

@@ -461,6 +461,7 @@ export default function DelegacionesFlagranciaModule() {
   const [loading, setLoading] = useState(false);
   const [savingField, setSavingField] = useState(false);
   const [selectedYear, setSelectedYear] = useState<string>(String(BASE_YEAR));
+  const [yearOptions, setYearOptions] = useState<string[]>([String(BASE_YEAR)]);
   const [searchNumeroDelegacion, setSearchNumeroDelegacion] = useState("");
   const [selectedOrden, setSelectedOrden] = useState("");
   const [selectedEmptyField, setSelectedEmptyField] = useState("");
@@ -468,10 +469,55 @@ export default function DelegacionesFlagranciaModule() {
   const [notification, setNotification] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
 
   const selectedYearNum = Number(selectedYear);
-  const yearOptions = useMemo(() => {
-    const current = new Date().getFullYear();
-    const end = Math.max(current + 2, BASE_YEAR);
-    return Array.from({ length: end - BASE_YEAR + 1 }, (_, idx) => String(BASE_YEAR + idx));
+
+  useEffect(() => {
+    let active = true;
+
+    const loadYearOptions = async () => {
+      const years = new Set<string>();
+      const PAGE_SIZE = 1000;
+
+      const collectYears = async (table: "FLAGRANCIA" | "DELEGACIONES", column: string) => {
+        let from = 0;
+        while (true) {
+          const to = from + PAGE_SIZE - 1;
+          const { data, error } = await supabase
+            .from(table)
+            .select(column)
+            .not(column, "is", null)
+            .range(from, to);
+
+          if (error) break;
+
+          const chunk = (data || []) as GenericRow[];
+          chunk.forEach((row) => {
+            const normalized = normalizeDateValue(toText(row[column]));
+            const year = normalized.split("-")[0] || "";
+            if (/^\d{4}$/.test(year)) years.add(year);
+          });
+
+          if (chunk.length < PAGE_SIZE) break;
+          from += PAGE_SIZE;
+        }
+      };
+
+      await collectYears("FLAGRANCIA", "F_RECEPCION");
+      await collectYears("DELEGACIONES", "FECHA_DE_RECEPCIÓN_EN_LA_PJ");
+
+      const sorted = Array.from(years).sort((a, b) => Number(a) - Number(b));
+      const fallback = String(BASE_YEAR);
+      const finalYears = sorted.length > 0 ? sorted : [fallback];
+
+      if (!active) return;
+      setYearOptions(finalYears);
+      setSelectedYear((prev) => (finalYears.includes(prev) ? prev : finalYears[0]));
+    };
+
+    void loadYearOptions();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const resumen = useMemo(

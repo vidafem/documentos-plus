@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import * as XLSX from "xlsx-js-style";
 import Notification from "./Notification";
@@ -49,11 +49,76 @@ const isoDateToExcelSerial = (value: string): number | null => {
   return (utcValue - excelEpoch) / 86400000;
 };
 
+const MONTH_OPTIONS = [
+  { value: "01", label: "01 - Enero" },
+  { value: "02", label: "02 - Febrero" },
+  { value: "03", label: "03 - Marzo" },
+  { value: "04", label: "04 - Abril" },
+  { value: "05", label: "05 - Mayo" },
+  { value: "06", label: "06 - Junio" },
+  { value: "07", label: "07 - Julio" },
+  { value: "08", label: "08 - Agosto" },
+  { value: "09", label: "09 - Septiembre" },
+  { value: "10", label: "10 - Octubre" },
+  { value: "11", label: "11 - Noviembre" },
+  { value: "12", label: "12 - Diciembre" },
+] as const;
+
 export default function DownloadPartes() {
   const [registros, setRegistros] = useState<ParteRegistro[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [filtroMes, setFiltroMes] = useState("");
+  const [filtroYear, setFiltroYear] = useState("");
+  const [filtroMonth, setFiltroMonth] = useState("");
+  const [aniosDisponibles, setAniosDisponibles] = useState<string[]>([]);
   const [notification, setNotification] = useState<{ message: string; type: "info" } | null>(null);
+
+  const filtroMes = useMemo(() => (filtroYear && filtroMonth ? `${filtroYear}-${filtroMonth}` : ""), [filtroYear, filtroMonth]);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadYears = async () => {
+      const years = new Set<string>();
+      const PAGE_SIZE = 1000;
+      let from = 0;
+
+      while (true) {
+        const to = from + PAGE_SIZE - 1;
+        const { data, error } = await supabase
+          .from("PARTES")
+          .select("fecha_cierre")
+          .not("fecha_cierre", "is", null)
+          .order("fecha_cierre", { ascending: false })
+          .range(from, to);
+
+        if (error) break;
+
+        const chunk = (data || []) as ParteRegistro[];
+        chunk.forEach((row) => {
+          const normalized = normalizeDateValue(String(row.fecha_cierre || ""));
+          const year = normalized.split("-")[0] || "";
+          if (/^\d{4}$/.test(year)) years.add(year);
+        });
+
+        if (chunk.length < PAGE_SIZE) break;
+        from += PAGE_SIZE;
+      }
+
+      const sorted = Array.from(years).sort((a, b) => Number(b) - Number(a));
+      const fallbackYear = String(new Date().getFullYear());
+      const finalYears = sorted.length > 0 ? sorted : [fallbackYear];
+
+      if (!active) return;
+      setAniosDisponibles(finalYears);
+      setFiltroYear((prev) => prev || finalYears[0]);
+    };
+
+    void loadYears();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const fetchRegistros = useCallback(async () => {
     let query = supabase.from("PARTES").select("*").order("created_at", { ascending: false });
@@ -190,7 +255,20 @@ export default function DownloadPartes() {
           <div className="flex gap-4 items-end">
             <div className="w-40 space-y-1">
               <label className="text-[10px] font-bold text-white/30 uppercase ml-1">Mes de Cierre</label>
-              <input type="month" value={filtroMes} onChange={(e) => setFiltroMes(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl p-2 text-xs text-white outline-none" />
+              <div className="grid grid-cols-2 gap-2">
+                <select value={filtroYear} onChange={(e) => setFiltroYear(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl p-2 text-xs text-white outline-none">
+                  <option value="" className="bg-black text-white">Año</option>
+                  {aniosDisponibles.map((year) => (
+                    <option key={`year-${year}`} value={year} className="bg-black text-white">{year}</option>
+                  ))}
+                </select>
+                <select value={filtroMonth} onChange={(e) => setFiltroMonth(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl p-2 text-xs text-white outline-none">
+                  <option value="" className="bg-black text-white">Mes</option>
+                  {MONTH_OPTIONS.map((month) => (
+                    <option key={`month-${month.value}`} value={month.value} className="bg-black text-white">{month.value}</option>
+                  ))}
+                </select>
+              </div>
             </div>
             <button onClick={() => void recargarRegistros()} className="bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl text-[10px] font-bold uppercase transition-all">⟳</button>
           </div>

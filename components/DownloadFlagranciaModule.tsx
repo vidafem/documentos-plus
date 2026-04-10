@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx-js-style";
 import { supabase } from "@/lib/supabaseClient";
 import Notification from "./Notification";
@@ -74,12 +74,90 @@ const isoDateToExcelSerial = (value: string): number | null => {
   return (utcValue - excelEpoch) / 86400000;
 };
 
+const MONTH_OPTIONS = [
+  { value: "01", label: "01" },
+  { value: "02", label: "02" },
+  { value: "03", label: "03" },
+  { value: "04", label: "04" },
+  { value: "05", label: "05" },
+  { value: "06", label: "06" },
+  { value: "07", label: "07" },
+  { value: "08", label: "08" },
+  { value: "09", label: "09" },
+  { value: "10", label: "10" },
+  { value: "11", label: "11" },
+  { value: "12", label: "12" },
+] as const;
+
+const DAY_OPTIONS = Array.from({ length: 31 }, (_, idx) => String(idx + 1).padStart(2, "0"));
+
+const buildIsoDate = (year: string, month: string, day: string): string => {
+  if (!year || !month || !day) return "";
+  return `${year}-${month}-${day}`;
+};
+
 export default function DownloadFlagranciaModule() {
-  const [fechaInicio, setFechaInicio] = useState("");
-  const [fechaFin, setFechaFin] = useState("");
+  const [aniosDisponibles, setAniosDisponibles] = useState<string[]>([]);
+  const [inicioYear, setInicioYear] = useState("");
+  const [inicioMonth, setInicioMonth] = useState("");
+  const [inicioDay, setInicioDay] = useState("");
+  const [finYear, setFinYear] = useState("");
+  const [finMonth, setFinMonth] = useState("");
+  const [finDay, setFinDay] = useState("");
   const [registros, setRegistros] = useState<FlagranciaRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [notification, setNotification] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
+
+  const fechaInicio = useMemo(() => buildIsoDate(inicioYear, inicioMonth, inicioDay), [inicioYear, inicioMonth, inicioDay]);
+  const fechaFin = useMemo(() => buildIsoDate(finYear, finMonth, finDay), [finYear, finMonth, finDay]);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadYears = async () => {
+      const years = new Set<string>();
+      const PAGE_SIZE = 1000;
+      let from = 0;
+
+      while (true) {
+        const to = from + PAGE_SIZE - 1;
+        const { data, error } = await supabase
+          .from("FLAGRANCIA")
+          .select("F_RECEPCION")
+          .not("F_RECEPCION", "is", null)
+          .order("F_RECEPCION", { ascending: false })
+          .range(from, to);
+
+        if (error) break;
+
+        const chunk = (data || []) as FlagranciaRow[];
+        chunk.forEach((row) => {
+          const normalized = normalizeDateValue(String(row["F_RECEPCION"] ?? ""));
+          const year = normalized.split("-")[0] || "";
+          if (/^\d{4}$/.test(year)) years.add(year);
+        });
+
+        if (chunk.length < PAGE_SIZE) break;
+        from += PAGE_SIZE;
+      }
+
+      const sorted = Array.from(years).sort((a, b) => Number(b) - Number(a));
+      const fallbackYear = String(new Date().getFullYear());
+      const finalYears = sorted.length > 0 ? sorted : [fallbackYear];
+
+      if (!active) return;
+      setAniosDisponibles(finalYears);
+      const defaultYear = finalYears[0];
+      setInicioYear((prev) => prev || defaultYear);
+      setFinYear((prev) => prev || defaultYear);
+    };
+
+    void loadYears();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const toSlashDate = (isoDate: string) => isoDate ? isoDate.replace(/-/g, "/") : "";
 
@@ -256,22 +334,50 @@ export default function DownloadFlagranciaModule() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-white/40 uppercase">F. recepcion inicio</label>
-              <input
-                type="date"
-                value={fechaInicio}
-                onChange={(e) => setFechaInicio(e.target.value)}
-                className="w-full bg-neutral-900 border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-indigo-500"
-              />
+              <div className="grid grid-cols-3 gap-2">
+                <select value={inicioYear} onChange={(e) => setInicioYear(e.target.value)} className="w-full bg-neutral-900 border border-white/10 rounded-xl px-2 py-2.5 text-xs text-white outline-none focus:border-indigo-500">
+                  <option value="" className="bg-black text-white">Año</option>
+                  {aniosDisponibles.map((year) => (
+                    <option key={`ini-year-${year}`} value={year} className="bg-black text-white">{year}</option>
+                  ))}
+                </select>
+                <select value={inicioMonth} onChange={(e) => setInicioMonth(e.target.value)} className="w-full bg-neutral-900 border border-white/10 rounded-xl px-2 py-2.5 text-xs text-white outline-none focus:border-indigo-500">
+                  <option value="" className="bg-black text-white">Mes</option>
+                  {MONTH_OPTIONS.map((month) => (
+                    <option key={`ini-month-${month.value}`} value={month.value} className="bg-black text-white">{month.value}</option>
+                  ))}
+                </select>
+                <select value={inicioDay} onChange={(e) => setInicioDay(e.target.value)} className="w-full bg-neutral-900 border border-white/10 rounded-xl px-2 py-2.5 text-xs text-white outline-none focus:border-indigo-500">
+                  <option value="" className="bg-black text-white">Día</option>
+                  {DAY_OPTIONS.map((day) => (
+                    <option key={`ini-day-${day}`} value={day} className="bg-black text-white">{day}</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-white/40 uppercase">F. recepcion fin</label>
-              <input
-                type="date"
-                value={fechaFin}
-                onChange={(e) => setFechaFin(e.target.value)}
-                className="w-full bg-neutral-900 border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-indigo-500"
-              />
+              <div className="grid grid-cols-3 gap-2">
+                <select value={finYear} onChange={(e) => setFinYear(e.target.value)} className="w-full bg-neutral-900 border border-white/10 rounded-xl px-2 py-2.5 text-xs text-white outline-none focus:border-indigo-500">
+                  <option value="" className="bg-black text-white">Año</option>
+                  {aniosDisponibles.map((year) => (
+                    <option key={`fin-year-${year}`} value={year} className="bg-black text-white">{year}</option>
+                  ))}
+                </select>
+                <select value={finMonth} onChange={(e) => setFinMonth(e.target.value)} className="w-full bg-neutral-900 border border-white/10 rounded-xl px-2 py-2.5 text-xs text-white outline-none focus:border-indigo-500">
+                  <option value="" className="bg-black text-white">Mes</option>
+                  {MONTH_OPTIONS.map((month) => (
+                    <option key={`fin-month-${month.value}`} value={month.value} className="bg-black text-white">{month.value}</option>
+                  ))}
+                </select>
+                <select value={finDay} onChange={(e) => setFinDay(e.target.value)} className="w-full bg-neutral-900 border border-white/10 rounded-xl px-2 py-2.5 text-xs text-white outline-none focus:border-indigo-500">
+                  <option value="" className="bg-black text-white">Día</option>
+                  {DAY_OPTIONS.map((day) => (
+                    <option key={`fin-day-${day}`} value={day} className="bg-black text-white">{day}</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <button
