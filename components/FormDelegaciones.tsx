@@ -190,33 +190,28 @@ export default function FormDelegaciones() {
             <input type="text" maxLength={3} value={nTomo} onChange={(e) => setNTomo(e.target.value)} className="w-full h-9 bg-white/10 border border-indigo-500/30 rounded-lg px-2 text-xs text-center text-white outline-none focus:border-indigo-500" placeholder="001" />
           </div>
 
-        </div>
-
-        {/* 2. FECHAS DE APERTURA Y CIERRE */}
-        <div className="flex flex-wrap gap-4 items-end">
-          {/* APERTURA */}
-          <div className="flex-1 min-w-[220px] bg-white/5 p-4 rounded-2xl border border-white/5 space-y-2">
-            <label className="text-[10px] font-black text-indigo-300 uppercase tracking-widest">Apertura</label>
-            <div className="grid grid-cols-5 gap-2">
-              <input required type="text" maxLength={2} value={diaApertura} onChange={(e) => setDiaApertura(e.target.value)} className="col-span-1 bg-white/10 border border-white/10 rounded-lg p-2 text-xs text-center text-white outline-none focus:border-indigo-500" placeholder="DD" />
-              <select value={mesApertura} onChange={(e) => setMesApertura(e.target.value)} className="col-span-2 bg-neutral-900 border border-white/10 rounded-lg p-2 text-[10px] text-white outline-none">
+          <div className="space-y-1 w-[190px]">
+            <label className="text-[10px] font-black text-indigo-300 uppercase">Apertura</label>
+            <div className="grid grid-cols-[44px_1fr_64px] gap-2">
+              <input required type="text" maxLength={2} value={diaApertura} onChange={(e) => setDiaApertura(e.target.value)} className="h-9 bg-white/10 border border-white/10 rounded-lg px-1 text-xs text-center text-white outline-none focus:border-indigo-500" placeholder="DD" />
+              <select value={mesApertura} onChange={(e) => setMesApertura(e.target.value)} className="h-9 bg-neutral-900 border border-white/10 rounded-lg px-1 text-[10px] text-white outline-none">
                 <option value="01">Ene</option><option value="02">Feb</option><option value="03">Mar</option><option value="04">Abr</option><option value="05">May</option><option value="06">Jun</option><option value="07">Jul</option><option value="08">Ago</option><option value="09">Sep</option><option value="10">Oct</option><option value="11">Nov</option><option value="12">Dic</option>
               </select>
-              <input type="text" maxLength={4} value={anioApertura} onChange={(e) => setAnioApertura(e.target.value.replace(/\D/g, "").slice(0, 4))} className="col-span-2 bg-white/5 border border-white/10 rounded-lg p-2 text-xs text-center text-white outline-none focus:border-indigo-500" />
+              <input type="text" maxLength={4} value={anioApertura} onChange={(e) => setAnioApertura(e.target.value.replace(/\D/g, "").slice(0, 4))} className="h-9 bg-white/5 border border-white/10 rounded-lg px-1 text-xs text-center text-white outline-none focus:border-indigo-500" />
             </div>
           </div>
 
-          {/* CIERRE */}
-          <div className="flex-1 min-w-[220px] bg-white/5 p-4 rounded-2xl border border-white/5 space-y-2">
-            <label className="text-[10px] font-black text-indigo-300 uppercase tracking-widest">Cierre</label>
-            <div className="grid grid-cols-5 gap-2">
-              <input required type="text" maxLength={2} value={diaCierre} onChange={(e) => setDiaCierre(e.target.value)} className="col-span-1 bg-white/10 border border-white/10 rounded-lg p-2 text-xs text-center text-white outline-none focus:border-indigo-500" placeholder="DD" />
-              <select value={mesCierre} onChange={(e) => setMesCierre(e.target.value)} className="col-span-2 bg-neutral-900 border border-white/10 rounded-lg p-2 text-[10px] text-white outline-none">
+          <div className="space-y-1 w-[190px]">
+            <label className="text-[10px] font-black text-indigo-300 uppercase">Cierre</label>
+            <div className="grid grid-cols-[44px_1fr_64px] gap-2">
+              <input required type="text" maxLength={2} value={diaCierre} onChange={(e) => setDiaCierre(e.target.value)} className="h-9 bg-white/10 border border-white/10 rounded-lg px-1 text-xs text-center text-white outline-none focus:border-indigo-500" placeholder="DD" />
+              <select value={mesCierre} onChange={(e) => setMesCierre(e.target.value)} className="h-9 bg-neutral-900 border border-white/10 rounded-lg px-1 text-[10px] text-white outline-none">
                 <option value="01">Ene</option><option value="02">Feb</option><option value="03">Mar</option><option value="04">Abr</option><option value="05">May</option><option value="06">Jun</option><option value="07">Jul</option><option value="08">Ago</option><option value="09">Sep</option><option value="10">Oct</option><option value="11">Nov</option><option value="12">Dic</option>
               </select>
-              <input type="text" maxLength={4} value={anioCierre} onChange={(e) => setAnioCierre(e.target.value.replace(/\D/g, "").slice(0, 4))} className="col-span-2 bg-white/5 border border-white/10 rounded-lg p-2 text-xs text-center text-white outline-none focus:border-indigo-500" />
+              <input type="text" maxLength={4} value={anioCierre} onChange={(e) => setAnioCierre(e.target.value.replace(/\D/g, "").slice(0, 4))} className="h-9 bg-white/5 border border-white/10 rounded-lg px-1 text-xs text-center text-white outline-none focus:border-indigo-500" />
             </div>
           </div>
+
         </div>
 
         {/* 3. DATOS DEL OFICIO */}
