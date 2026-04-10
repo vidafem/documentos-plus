@@ -57,6 +57,19 @@ const normalizeDate = (value: string): string => {
   return `${match[1]}-${match[2]}-${match[3]}`;
 };
 
+const isoDateToExcelSerial = (value: string): number | null => {
+  const normalized = normalizeDate(value);
+  if (!normalized) return null;
+  const [yearText, monthText, dayText] = normalized.split("-");
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null;
+  const utcValue = Date.UTC(year, month - 1, day);
+  const excelEpoch = Date.UTC(1899, 11, 30);
+  return (utcValue - excelEpoch) / 86400000;
+};
+
 const toDisplayDate = (value: string): string => {
   const normalized = normalizeDate(value);
   if (!normalized) return value;
@@ -465,6 +478,19 @@ export default function BasesPartesModule({ sourceTable, title }: BasesPartesMod
         }
 
         const isHeader = r === 0;
+        const isDateColumn = c === 5 || c === 6;
+        if (!isHeader) {
+          const excelSerial = isDateColumn ? isoDateToExcelSerial(String(worksheet[cellAddress].v ?? "")) : null;
+          if (excelSerial !== null) {
+            worksheet[cellAddress].t = "n";
+            worksheet[cellAddress].v = excelSerial;
+            (worksheet[cellAddress] as XLSX.CellObject & { z?: string }).z = "yyyy-mm-dd";
+          } else {
+            worksheet[cellAddress].t = "s";
+            worksheet[cellAddress].v = String(worksheet[cellAddress].v ?? "");
+            (worksheet[cellAddress] as XLSX.CellObject & { z?: string }).z = "@";
+          }
+        }
         worksheet[cellAddress].s = {
           font: {
             name: "Arial",

@@ -135,6 +135,33 @@ const DELEGACIONES_INSERT_COLUMNS = [
 ] as const;
 
 const RED_IF_FILLED_COLUMNS = new Set([
+  const normalizeDateValue = (value: string): string => {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    const firstChunk = raw.split(" ")[0];
+    if (/^\d{4}[-/]\d{1,2}[-/]\d{1,2}$/.test(firstChunk)) {
+      const [y, m, d] = firstChunk.split(/[/-]/);
+      return `${y.padStart(4, "0")}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+    }
+    if (/^\d{1,2}[-/]\d{1,2}[-/]\d{4}$/.test(firstChunk)) {
+      const [d, m, y] = firstChunk.split(/[/-]/);
+      return `${y.padStart(4, "0")}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+    }
+    return "";
+  };
+
+  const isoDateToExcelSerial = (value: string): number | null => {
+    const normalized = normalizeDateValue(value);
+    if (!normalized) return null;
+    const [yearText, monthText, dayText] = normalized.split("-");
+    const year = Number(yearText);
+    const month = Number(monthText);
+    const day = Number(dayText);
+    if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null;
+    const utcValue = Date.UTC(year, month - 1, day);
+    const excelEpoch = Date.UTC(1899, 11, 30);
+    return (utcValue - excelEpoch) / 86400000;
+  };
   "DELITO/DELEGACION",
   "DELEGACION/RECEPCI",
   "RECEPCION/AGENTE",
@@ -640,6 +667,12 @@ export default function DelegacionesFlagranciaModule() {
     worksheet["!cols"] = DELEGACIONES_HEADERS.map(() => ({ wch: 19 }));
 
     const range = XLSX.utils.decode_range(worksheet["!ref"] || "A1:A1");
+    const dateColIndexes = new Set(
+      DELEGACIONES_HEADERS
+        .map((header, index) => ({ header, index }))
+        .filter(({ header }) => /FECHA|^F_|EXTRACTO/i.test(header))
+        .map(({ index }) => index)
+    );
 
     for (let c = range.s.c; c <= range.e.c; c += 1) {
       const addr = XLSX.utils.encode_cell({ r: 0, c });
@@ -658,14 +691,25 @@ export default function DelegacionesFlagranciaModule() {
         const addr = XLSX.utils.encode_cell({ r, c });
         const cell = worksheet[addr] as (XLSX.CellObject & { s?: Record<string, unknown>; z?: string }) | undefined;
         if (cell) {
-          cell.t = "s";
-          cell.v = String(cell.v ?? "");
-          cell.z = "@";
+          const originalValue = String(cell.v ?? "");
+          const isDateColumn = dateColIndexes.has(c);
+          const excelSerial = isDateColumn ? isoDateToExcelSerial(originalValue) : null;
+
+          if (excelSerial !== null) {
+            cell.t = "n";
+            cell.v = excelSerial;
+            cell.z = "yyyy-mm-dd";
+          } else {
+            cell.t = "s";
+            cell.v = originalValue;
+            cell.z = "@";
+          }
+
           const headerName = DELEGACIONES_HEADERS[c];
           const shouldPaintRed = RED_IF_FILLED_COLUMNS.has(headerName) && String(cell.v).trim().length > 0;
           cell.s = {
             font: { color: { rgb: shouldPaintRed ? "FFFF0000" : "FF000000" } },
-            alignment: { horizontal: "left", vertical: "center" },
+            alignment: { horizontal: isDateColumn ? "center" : "left", vertical: "center" },
           };
         }
       }
