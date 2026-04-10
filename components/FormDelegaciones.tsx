@@ -83,6 +83,31 @@ export default function FormDelegaciones() {
     return str.toLowerCase().replace(/\b\w/g, (l) => l.toUpperCase());
   };
 
+  const formatSospechososInput = (value: string) => {
+    const normalized = formatTitleCase(value)
+      .replace(/\s+,/g, ",")
+      .replace(/,\s*/g, ", ");
+
+    if (!normalized.endsWith(" ")) {
+      return normalized;
+    }
+
+    const trimmedValue = normalized.trimEnd();
+    const personas = trimmedValue.split(",").map((item) => item.trim());
+    const ultimaPersona = personas[personas.length - 1] || "";
+    const palabras = ultimaPersona.split(/\s+/).filter(Boolean);
+
+    if (palabras.length === 4) {
+      return `${personas.filter(Boolean).join(", ")}, `;
+    }
+
+    return normalized;
+  };
+
+  const handleSospechososChange = (value: string) => {
+    setSospechosos(formatSospechososInput(value));
+  };
+
   const countWords = (str: string): number => {
     return str.trim().split(/\s+/).filter((w) => w.length > 0).length;
   };
@@ -90,17 +115,7 @@ export default function FormDelegaciones() {
   const handleSospechososKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key !== "Enter") return;
     e.preventDefault();
-    const updated = sospechosos.trim();
-    
-    // Obtener la parte después de la última coma
-    const lastCommaIndex = updated.lastIndexOf(",");
-    const afterLastComma = lastCommaIndex === -1 ? updated : updated.substring(lastCommaIndex + 1).trim();
-    
-    // Contar palabras después de la última coma
-    const palabras = afterLastComma.split(/\s+/).filter((w) => w.length > 0);
-    if (palabras.length === 4) {
-      setSospechosos(updated + ", ");
-    }
+    setSospechosos((prev) => formatSospechososInput(`${prev} `));
   };
 
   const expedientePrefijo = `IF-0901018${(anioApertura || anioBase || "").slice(-2).padStart(2, "0")}`;
@@ -263,7 +278,7 @@ export default function FormDelegaciones() {
         
           <div className="space-y-1">
             <label className="text-[10px] font-bold text-white/30 uppercase">Sospechosos</label>
-            <input required type="text" value={sospechosos} onChange={(e) => setSospechosos(formatTitleCase(e.target.value))} onKeyDown={handleSospechososKeyDown} className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-indigo-500" placeholder="Nombres..." />
+            <input required type="text" value={sospechosos} onChange={(e) => handleSospechososChange(e.target.value)} onKeyDown={handleSospechososKeyDown} className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-indigo-500" placeholder="Nombres..." />
           </div>
         </div>
 
