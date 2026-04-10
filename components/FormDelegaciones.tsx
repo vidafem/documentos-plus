@@ -15,6 +15,7 @@ export default function FormDelegaciones() {
   const [mesApertura, setMesApertura] = useState("12");
   const [mesCierre, setMesCierre] = useState("12");
   const [oficioAnio, setOficioAnio] = useState("2021");
+  const [nTomo, setNTomo] = useState("");
 
   // --- VALORES VARIABLES (Se limpian al guardar) ---
   const [expedienteSufijo, setExpedienteSufijo] = useState("");
@@ -113,7 +114,7 @@ export default function FormDelegaciones() {
     const registroFinal = {
       n_caja: "",
       expediente: `${expedientePrefijo}${expedienteSufijo}`,
-      n_tomo: "",
+      n_tomo: nTomo,
       descripcion: descFinal,
       fecha_apertura: `${anioApertura}-${mesApertura}-${diaApertura.padStart(2, '0')}`,
       fecha_cierre: `${anioCierre}-${mesCierre}-${diaCierre.padStart(2, '0')}`,
@@ -131,7 +132,7 @@ export default function FormDelegaciones() {
     } else {
       setNotification({ message: "Guardado con éxito", type: 'success' });
       
-      // Limpieza de campos variables SOLAMENTE (fechas permanecen constantes)
+      // Limpieza de campos variables SOLAMENTE (fechas y tomo permanecen constantes)
       setExpedienteSufijo(""); setOficioN(""); setOficio4D(""); setOficio6D("");
       setDelito(""); setSospechosos(""); setFojas("");
     }
@@ -254,11 +255,15 @@ export default function FormDelegaciones() {
           </div>
         </div>
 
-        {/* 6. FOJAS */}
+        {/* 6. FOJAS Y N° TOMO */}
         <div className="flex items-end gap-4">
           <div className="w-20 space-y-1">
             <label className="text-[10px] font-bold text-white/30 uppercase">Fojas</label>
             <input required type="text" maxLength={3} value={fojas} onChange={(e) => setFojas(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl p-2 text-xs text-center text-white outline-none focus:border-indigo-500" placeholder="000" />
+          </div>
+          <div className="w-20 space-y-1">
+            <label className="text-[10px] font-bold text-white/30 uppercase">N° Tomo</label>
+            <input type="text" maxLength={3} value={nTomo} onChange={(e) => setNTomo(e.target.value)} className="w-full bg-white/5 border border-indigo-500/30 rounded-xl p-2 text-xs text-center text-white outline-none focus:border-indigo-500" placeholder="001" />
           </div>
         </div>
 
