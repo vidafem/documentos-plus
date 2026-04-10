@@ -234,19 +234,16 @@ export default function FormDelegaciones() {
           </div>
         </div>
 
-        {/* 4. N° DE EXPEDIENTE */}
-        <div className="flex flex-wrap gap-4 items-end">
-          <div className="flex-1 min-w-[200px] space-y-1">
+        {/* 4. N° DE EXPEDIENTE Y DELITO */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+          <div className="space-y-1">
             <label className="text-[10px] font-bold text-white/30 uppercase">N° de Expediente</label>
             <div className="flex items-center bg-white/5 border border-white/10 rounded-xl overflow-hidden focus-within:border-indigo-500 transition-all">
               <span className="bg-white/10 px-2 py-2 text-[10px] text-white/40 font-mono">{expedientePrefijo}</span>
               <input required type="text" value={expedienteSufijo} onChange={(e) => setExpedienteSufijo(e.target.value)} className="flex-1 bg-transparent p-2 text-xs text-white outline-none" />
             </div>
           </div>
-        </div>
 
-        {/* 5. DELITO Y SOSPECHOSOS */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="relative space-y-1">
             <label className="text-[10px] font-bold text-white/30 uppercase">Delito</label>
             <input
@@ -275,15 +272,15 @@ export default function FormDelegaciones() {
               </ul>
             )}
           </div>
-        
-          <div className="space-y-1">
+        </div>
+
+        {/* 5. SOSPECHOSOS Y FOJAS */}
+        <div className="flex flex-wrap items-end gap-4">
+          <div className="flex-1 min-w-[260px] space-y-1">
             <label className="text-[10px] font-bold text-white/30 uppercase">Sospechosos</label>
             <input required type="text" value={sospechosos} onChange={(e) => handleSospechososChange(e.target.value)} onKeyDown={handleSospechososKeyDown} className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-indigo-500" placeholder="Nombres..." />
           </div>
-        </div>
 
-        {/* 6. FOJAS */}
-        <div className="flex items-end gap-4">
           <div className="w-20 space-y-1">
             <label className="text-[10px] font-bold text-white/30 uppercase">Fojas</label>
             <input required type="text" maxLength={3} value={fojas} onChange={(e) => setFojas(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl p-2 text-xs text-center text-white outline-none focus:border-indigo-500" placeholder="000" />
