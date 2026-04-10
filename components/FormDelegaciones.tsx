@@ -146,69 +146,7 @@ export default function FormDelegaciones() {
 
         </div>
 
-        {/* 2. EXPEDIENTE */}
-        <div className="flex flex-wrap gap-4 items-end">
-          <div className="flex-1 min-w-[200px] space-y-1">
-            <label className="text-[10px] font-bold text-white/30 uppercase">N° de Expediente</label>
-            <div className="flex items-center bg-white/5 border border-white/10 rounded-xl overflow-hidden focus-within:border-indigo-500 transition-all">
-              <span className="bg-white/10 px-2 py-2 text-[10px] text-white/40 font-mono">{expedientePrefijo}</span>
-              <input required type="text" value={expedienteSufijo} onChange={(e) => setExpedienteSufijo(e.target.value)} className="flex-1 bg-transparent p-2 text-xs text-white outline-none" />
-            </div>
-          </div>
-        </div>
-
-        {/* 3. DATOS DEL OFICIO Y BUSCADOR DE DELITOS */}
-        <div className="bg-white/5 p-4 rounded-2xl border border-white/5 space-y-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[10px] text-white/50 font-mono">Oficio No.FPG-FEIFO</span>
-            <input required type="text" maxLength={2} value={oficioN} onChange={(e) => setOficioN(e.target.value)} className="w-10 bg-white/10 border border-white/10 rounded-lg p-1 text-xs text-center outline-none focus:border-indigo-500" placeholder="00" />
-            <span className="text-white/30">-</span>
-            <input required type="text" maxLength={4} value={oficio4D} onChange={(e) => setOficio4D(e.target.value)} className="w-14 bg-white/10 border border-white/10 rounded-lg p-1 text-xs text-center outline-none focus:border-indigo-500" placeholder="0000" />
-            <span className="text-white/30">-</span>
-            <span className="w-14 bg-white/10 border border-white/10 rounded-lg p-1 text-xs text-center text-indigo-300 font-bold flex items-center justify-center">{oficioAnio}</span>
-            <span className="text-white/30">-</span>
-            <input required type="text" value={oficio6D} onChange={(e) => setOficio6D(e.target.value)} className="w-20 bg-white/10 border border-white/10 rounded-lg p-1 text-xs text-center outline-none focus:border-indigo-500" placeholder="000000" />
-            <span className="text-[10px] text-white/50 font-mono">-O</span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="relative space-y-1">
-              <label className="text-[10px] font-bold text-white/30 uppercase">Delito</label>
-              <input
-                required
-                type="text"
-                value={delito}
-                onChange={(e) => buscarDelitos(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-indigo-500"
-                placeholder="Ej: tenencia..."
-                autoComplete="off"
-              />
-              {sugerencias.length > 0 && (
-                <ul className="absolute z-50 w-full bg-neutral-900 border border-white/10 rounded-xl mt-1 shadow-2xl max-h-40 overflow-y-auto overflow-x-hidden">
-                  {sugerencias.map((s, i) => (
-                    <li
-                      key={i}
-                      onClick={() => {
-                        setDelito(s.delito);
-                        setSugerencias([]);
-                      }}
-                      className="p-3 text-[10px] text-white hover:bg-indigo-600 cursor-pointer border-b border-white/5 last:border-none transition-colors"
-                    >
-                      {s.delito}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-white/30 uppercase">Sospechosos</label>
-              <input required type="text" value={sospechosos} onChange={(e) => setSospechosos(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-indigo-500" placeholder="Nombres..." />
-            </div>
-          </div>
-        </div>
-
-        {/* 4. FECHAS, FOJAS Y DESTINO (REESTRUCTURADO) */}
+        {/* 2. FECHAS DE APERTURA Y CIERRE */}
         <div className="flex flex-wrap gap-4 items-end">
           {/* APERTURA */}
           <div className="flex-1 min-w-[220px] bg-white/5 p-4 rounded-2xl border border-white/5 space-y-2">
@@ -233,16 +171,80 @@ export default function FormDelegaciones() {
               <input type="text" maxLength={4} value={anioCierre} onChange={(e) => setAnioCierre(e.target.value.replace(/\D/g, "").slice(0, 4))} className="col-span-2 bg-white/5 border border-white/10 rounded-lg p-2 text-xs text-center text-white outline-none focus:border-indigo-500" />
             </div>
           </div>
+        </div>
 
-          {/* FOJAS */}
+        {/* 3. DATOS DEL OFICIO */}
+        <div className="bg-white/5 p-4 rounded-2xl border border-white/5 space-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[10px] text-white/50 font-mono">Oficio No.FPG-FEIFO</span>
+            <input required type="text" maxLength={2} value={oficioN} onChange={(e) => setOficioN(e.target.value)} className="w-10 bg-white/10 border border-white/10 rounded-lg p-1 text-xs text-center outline-none focus:border-indigo-500" placeholder="00" />
+            <span className="text-white/30">-</span>
+            <input required type="text" maxLength={4} value={oficio4D} onChange={(e) => setOficio4D(e.target.value)} className="w-14 bg-white/10 border border-white/10 rounded-lg p-1 text-xs text-center outline-none focus:border-indigo-500" placeholder="0000" />
+            <span className="text-white/30">-</span>
+            <span className="w-14 bg-white/10 border border-white/10 rounded-lg p-1 text-xs text-center text-indigo-300 font-bold flex items-center justify-center">{oficioAnio}</span>
+            <span className="text-white/30">-</span>
+            <input required type="text" value={oficio6D} onChange={(e) => setOficio6D(e.target.value)} className="w-20 bg-white/10 border border-white/10 rounded-lg p-1 text-xs text-center outline-none focus:border-indigo-500" placeholder="000000" />
+            <span className="text-[10px] text-white/50 font-mono">-O</span>
+          </div>
+        </div>
+
+        {/* 4. N° DE EXPEDIENTE */}
+        <div className="flex flex-wrap gap-4 items-end">
+          <div className="flex-1 min-w-[200px] space-y-1">
+            <label className="text-[10px] font-bold text-white/30 uppercase">N° de Expediente</label>
+            <div className="flex items-center bg-white/5 border border-white/10 rounded-xl overflow-hidden focus-within:border-indigo-500 transition-all">
+              <span className="bg-white/10 px-2 py-2 text-[10px] text-white/40 font-mono">{expedientePrefijo}</span>
+              <input required type="text" value={expedienteSufijo} onChange={(e) => setExpedienteSufijo(e.target.value)} className="flex-1 bg-transparent p-2 text-xs text-white outline-none" />
+            </div>
+          </div>
+        </div>
+
+        {/* 5. DELITO Y SOSPECHOSOS */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="relative space-y-1">
+            <label className="text-[10px] font-bold text-white/30 uppercase">Delito</label>
+            <input
+              required
+              type="text"
+              value={delito}
+              onChange={(e) => buscarDelitos(e.target.value)}
+              className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-indigo-500"
+              placeholder="Ej: tenencia..."
+              autoComplete="off"
+            />
+            {sugerencias.length > 0 && (
+              <ul className="absolute z-50 w-full bg-neutral-900 border border-white/10 rounded-xl mt-1 shadow-2xl max-h-40 overflow-y-auto overflow-x-hidden">
+                {sugerencias.map((s, i) => (
+                  <li
+                    key={i}
+                    onClick={() => {
+                      setDelito(s.delito);
+                      setSugerencias([]);
+                    }}
+                    className="p-3 text-[10px] text-white hover:bg-indigo-600 cursor-pointer border-b border-white/5 last:border-none transition-colors"
+                  >
+                    {s.delito}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-white/30 uppercase">Sospechosos</label>
+            <input required type="text" value={sospechosos} onChange={(e) => setSospechosos(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-indigo-500" placeholder="Nombres..." />
+          </div>
+        </div>
+
+        {/* 6. FOJAS */}
+        <div className="flex items-end gap-4">
           <div className="w-20 space-y-1">
             <label className="text-[10px] font-bold text-white/30 uppercase">Fojas</label>
             <input required type="text" maxLength={3} value={fojas} onChange={(e) => setFojas(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl p-2 text-xs text-center text-white outline-none focus:border-indigo-500" placeholder="000" />
           </div>
-        
         </div>
 
-        {/* 5. BOTÓN GUARDAR */}
+        {/* 7. BOTÓN GUARDAR */}
         <div className="flex justify-end pt-2">
           <button 
             type="submit" 
