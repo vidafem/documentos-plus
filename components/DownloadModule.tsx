@@ -51,6 +51,19 @@ const normalizeDateValue = (value: string): string => {
   return "";
 };
 
+const isoDateToExcelSerial = (value: string): number | null => {
+  const normalized = normalizeDateValue(value);
+  if (!normalized) return null;
+  const [yearText, monthText, dayText] = normalized.split("-");
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null;
+  const utcValue = Date.UTC(year, month - 1, day);
+  const excelEpoch = Date.UTC(1899, 11, 30);
+  return (utcValue - excelEpoch) / 86400000;
+};
+
 const toSortableDateNumber = (value: unknown): number => {
   const normalized = normalizeDateValue(String(value ?? ""));
   if (!normalized) return 0;
@@ -483,6 +496,10 @@ export default function DownloadModule() {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "delegaciones_viejas");
 
+    const aperturaCol = ARCHIVO_HEADERS.findIndex((header) => header.label === "APERTURA");
+    const cierreCol = ARCHIVO_HEADERS.findIndex((header) => header.label === "CIERRE");
+    const dateCols = new Set([aperturaCol, cierreCol].filter((idx) => idx >= 0));
+
     worksheet["!cols"] = ARCHIVO_HEADERS.map((header) => ({
       wch: header.label === "DESCRIPCIÓN" ? 80 : header.label === "SERIE/SUBSERIE_DOCUMENTAL" ? 36 : 18,
     }));
@@ -513,12 +530,23 @@ export default function DownloadModule() {
         const addr = XLSX.utils.encode_cell({ r, c });
         const cell = worksheet[addr] as (XLSX.CellObject & { s?: Record<string, unknown>; z?: string }) | undefined;
         if (cell) {
-          cell.t = "s";
-          cell.v = String(cell.v ?? "");
-          cell.z = "@";
+          const originalValue = String(cell.v ?? "");
+          const isDateColumn = dateCols.has(c);
+          const excelSerial = isDateColumn ? isoDateToExcelSerial(originalValue) : null;
+
+          if (excelSerial !== null) {
+            cell.t = "n";
+            cell.v = excelSerial;
+            cell.z = "yyyy-mm-dd";
+          } else {
+            cell.t = "s";
+            cell.v = originalValue;
+            cell.z = "@";
+          }
+
           cell.s = {
             font: { name: "Calibri", sz: 11, color: { rgb: "FF000000" } },
-            alignment: { horizontal: "left", vertical: "center", wrapText: true },
+            alignment: { horizontal: isDateColumn ? "center" : "left", vertical: "center", wrapText: true },
             border: thinBorder,
           };
         }
