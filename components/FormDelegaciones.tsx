@@ -90,9 +90,16 @@ export default function FormDelegaciones() {
   const handleSospechososKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key !== "Enter") return;
     e.preventDefault();
-    const palabras = sospechosos.trim().split(/\s+/).filter((w) => w.length > 0);
+    const updated = sospechosos.trim();
+    
+    // Obtener la parte después de la última coma
+    const lastCommaIndex = updated.lastIndexOf(",");
+    const afterLastComma = lastCommaIndex === -1 ? updated : updated.substring(lastCommaIndex + 1).trim();
+    
+    // Contar palabras después de la última coma
+    const palabras = afterLastComma.split(/\s+/).filter((w) => w.length > 0);
     if (palabras.length === 4) {
-      setSospechosos(sospechosos.trim() + ", ");
+      setSospechosos(updated + ", ");
     }
   };
 
@@ -161,6 +168,11 @@ export default function FormDelegaciones() {
             <select value={mesBase} onChange={(e) => setMesBase(e.target.value)} className="w-full h-9 bg-neutral-900 border border-white/10 rounded-lg px-2 text-xs text-white outline-none">
               <option value="01">01 - Ene</option><option value="02">02 - Feb</option><option value="03">03 - Mar</option><option value="04">04 - Abr</option><option value="05">05 - May</option><option value="06">06 - Jun</option><option value="07">07 - Jul</option><option value="08">08 - Ago</option><option value="09">09 - Sep</option><option value="10">10 - Oct</option><option value="11">11 - Nov</option><option value="12">12 - Dic</option>
             </select>
+          </div>
+
+          <div className="space-y-1 w-20">
+            <label className="text-[10px] font-bold text-white/30 uppercase">N° Tomo</label>
+            <input type="text" maxLength={3} value={nTomo} onChange={(e) => setNTomo(e.target.value)} className="w-full h-9 bg-white/10 border border-indigo-500/30 rounded-lg px-2 text-xs text-center text-white outline-none focus:border-indigo-500" placeholder="001" />
           </div>
 
         </div>
@@ -255,15 +267,11 @@ export default function FormDelegaciones() {
           </div>
         </div>
 
-        {/* 6. FOJAS Y N° TOMO */}
+        {/* 6. FOJAS */}
         <div className="flex items-end gap-4">
           <div className="w-20 space-y-1">
             <label className="text-[10px] font-bold text-white/30 uppercase">Fojas</label>
             <input required type="text" maxLength={3} value={fojas} onChange={(e) => setFojas(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl p-2 text-xs text-center text-white outline-none focus:border-indigo-500" placeholder="000" />
-          </div>
-          <div className="w-20 space-y-1">
-            <label className="text-[10px] font-bold text-white/30 uppercase">N° Tomo</label>
-            <input type="text" maxLength={3} value={nTomo} onChange={(e) => setNTomo(e.target.value)} className="w-full bg-white/5 border border-indigo-500/30 rounded-xl p-2 text-xs text-center text-white outline-none focus:border-indigo-500" placeholder="001" />
           </div>
         </div>
 
