@@ -82,6 +82,19 @@ export default function FormDelegaciones() {
     return str.toLowerCase().replace(/\b\w/g, (l) => l.toUpperCase());
   };
 
+  const countWords = (str: string): number => {
+    return str.trim().split(/\s+/).filter((w) => w.length > 0).length;
+  };
+
+  const handleSospechososKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    const palabras = sospechosos.trim().split(/\s+/).filter((w) => w.length > 0);
+    if (palabras.length === 4) {
+      setSospechosos(sospechosos.trim() + ", ");
+    }
+  };
+
   const expedientePrefijo = `IF-0901018${(anioApertura || anioBase || "").slice(-2).padStart(2, "0")}`;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -90,7 +103,12 @@ export default function FormDelegaciones() {
    
     const oficio6Numerico = oficio6D.replace(/\D/g, "");
     const oficio6Normalizado = oficio6Numerico.slice(-6).padStart(6, "0");
-    const descFinal = `Oficio No.FPG-FEIFO${oficioN}-${oficio4D}-${oficioAnio}-${oficio6Normalizado}-O; Delito: ${formatTitleCase(delito)}; Sospechosos: ${formatTitleCase(sospechosos)}.`;
+    
+    // Detectar si es singular o plural según número de palabras
+    const palabrasTotal = countWords(sospechosos);
+    const labelSospechosos = palabrasTotal > 4 ? "Sospechosos" : "Sospechoso";
+    
+    const descFinal = `Oficio No.FPG-FEIFO${oficioN}-${oficio4D}-${oficioAnio}-${oficio6Normalizado}-O; Delito: ${formatTitleCase(delito)}; ${labelSospechosos}: ${formatTitleCase(sospechosos)}.`;
 
     const registroFinal = {
       n_caja: "",
@@ -101,7 +119,7 @@ export default function FormDelegaciones() {
       fecha_cierre: `${anioCierre}-${mesCierre}-${diaCierre.padStart(2, '0')}`,
       n_fojas: fojas,
       destino_final: "Eliminación",
-      serie: "PROCEDIMIENTOS INVESTIGATIVOS",
+      serie: "PROCEDIMIENTOS INVESTIGATIVOS POR DISPOSICIÓN JUDICIAL",
       soporte: "Fisico"
     };
 
@@ -113,9 +131,9 @@ export default function FormDelegaciones() {
     } else {
       setNotification({ message: "Guardado con éxito", type: 'success' });
       
-      // Limpieza de campos variables
+      // Limpieza de campos variables SOLAMENTE (fechas permanecen constantes)
       setExpedienteSufijo(""); setOficioN(""); setOficio4D(""); setOficio6D("");
-      setDelito(""); setSospechosos(""); setDiaApertura(""); setDiaCierre(""); setFojas("");
+      setDelito(""); setSospechosos(""); setFojas("");
     }
   };
 
@@ -232,7 +250,7 @@ export default function FormDelegaciones() {
         
           <div className="space-y-1">
             <label className="text-[10px] font-bold text-white/30 uppercase">Sospechosos</label>
-            <input required type="text" value={sospechosos} onChange={(e) => setSospechosos(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-indigo-500" placeholder="Nombres..." />
+            <input required type="text" value={sospechosos} onChange={(e) => setSospechosos(formatTitleCase(e.target.value))} onKeyDown={handleSospechososKeyDown} className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-indigo-500" placeholder="Nombres..." />
           </div>
         </div>
 
