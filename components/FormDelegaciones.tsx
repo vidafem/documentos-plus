@@ -10,6 +10,8 @@ export default function FormDelegaciones() {
   // --- VALORES PERSISTENTES (Sticky) ---
   const [anioBase, setAnioBase] = useState("2021");
   const [mesBase, setMesBase] = useState("12");
+  const [anioApertura, setAnioApertura] = useState("2021");
+  const [anioCierre, setAnioCierre] = useState("2021");
   const [mesApertura, setMesApertura] = useState("12");
   const [mesCierre, setMesCierre] = useState("12");
   const [oficioAnio, setOficioAnio] = useState("2021");
@@ -33,6 +35,8 @@ export default function FormDelegaciones() {
   }, [mesBase]);
 
   useEffect(() => {
+    setAnioApertura(anioBase);
+    setAnioCierre(anioBase);
     setOficioAnio(anioBase);
   }, [anioBase]);
 
@@ -79,19 +83,23 @@ export default function FormDelegaciones() {
     return str.toLowerCase().replace(/\b\w/g, (l) => l.toUpperCase());
   };
 
+  const expedientePrefijo = `IF-0901018${(anioApertura || anioBase || "").slice(-2).padStart(2, "0")}`;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
    
-    const descFinal = `Oficio No.FPG-FEIFO${oficioN}-${oficio4D}-${oficioAnio}-${oficio6D}-O; Delito: ${formatTitleCase(delito)}; Sospechosos: ${formatTitleCase(sospechosos)}.`;
+    const oficio6Numerico = oficio6D.replace(/\D/g, "");
+    const oficio6Normalizado = oficio6Numerico.slice(-6).padStart(6, "0");
+    const descFinal = `Oficio No.FPG-FEIFO${oficioN}-${oficio4D}-${oficioAnio}-${oficio6Normalizado}-O; Delito: ${formatTitleCase(delito)}; Sospechosos: ${formatTitleCase(sospechosos)}.`;
 
     const registroFinal = {
       n_caja: "",
-      expediente: `IF-0901018${expedienteSufijo}`,
+      expediente: `${expedientePrefijo}${expedienteSufijo}`,
       n_tomo: "",
       descripcion: descFinal,
-      fecha_apertura: `${anioBase}-${mesApertura}-${diaApertura.padStart(2, '0')}`,
-      fecha_cierre: `${anioBase}-${mesCierre}-${diaCierre.padStart(2, '0')}`,
+      fecha_apertura: `${anioApertura}-${mesApertura}-${diaApertura.padStart(2, '0')}`,
+      fecha_cierre: `${anioCierre}-${mesCierre}-${diaCierre.padStart(2, '0')}`,
       n_fojas: fojas,
       destino_final: destino,
       serie: "PROCEDIMIENTOS INVESTIGATIVOS",
@@ -124,25 +132,22 @@ export default function FormDelegaciones() {
       <form onSubmit={handleSubmit} className="bg-white/5 rounded-3xl p-6 border border-white/5 space-y-6 animate-in fade-in duration-500">
         
         {/* 1. CONTROLES CONSTANTES */}
-        <div className="bg-white/5 p-4 rounded-2xl border border-white/5 space-y-3">
-          <label className="text-[10px] font-black text-indigo-300 uppercase tracking-widest">Parámetros constantes</label>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-white/30 uppercase">Año base</label>
-              <input type="text" maxLength={4} value={anioBase} onChange={(e) => setAnioBase(e.target.value.replace(/\D/g, "").slice(0, 4))} className="w-full bg-white/10 border border-indigo-500/30 rounded-xl p-2 text-xs text-center text-white outline-none focus:border-indigo-500" />
-            </div>
+        <div className="flex flex-wrap items-end gap-3 bg-white/5 p-3 rounded-2xl border border-white/5">
+          <div className="space-y-1 w-20">
+            <label className="text-[10px] font-bold text-white/30 uppercase">Año</label>
+            <input type="text" maxLength={4} value={anioBase} onChange={(e) => setAnioBase(e.target.value.replace(/\D/g, "").slice(0, 4))} className="w-full h-9 bg-white/10 border border-indigo-500/30 rounded-lg px-2 text-xs text-center text-white outline-none focus:border-indigo-500" />
+          </div>
 
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-white/30 uppercase">Mes base</label>
-              <select value={mesBase} onChange={(e) => setMesBase(e.target.value)} className="w-full bg-neutral-900 border border-white/10 rounded-xl p-2 text-xs text-white outline-none">
-                <option value="01">01 - Ene</option><option value="02">02 - Feb</option><option value="03">03 - Mar</option><option value="04">04 - Abr</option><option value="05">05 - May</option><option value="06">06 - Jun</option><option value="07">07 - Jul</option><option value="08">08 - Ago</option><option value="09">09 - Sep</option><option value="10">10 - Oct</option><option value="11">11 - Nov</option><option value="12">12 - Dic</option>
-              </select>
-            </div>
+          <div className="space-y-1 w-24">
+            <label className="text-[10px] font-bold text-white/30 uppercase">Mes</label>
+            <select value={mesBase} onChange={(e) => setMesBase(e.target.value)} className="w-full h-9 bg-neutral-900 border border-white/10 rounded-lg px-2 text-xs text-white outline-none">
+              <option value="01">01 - Ene</option><option value="02">02 - Feb</option><option value="03">03 - Mar</option><option value="04">04 - Abr</option><option value="05">05 - May</option><option value="06">06 - Jun</option><option value="07">07 - Jul</option><option value="08">08 - Ago</option><option value="09">09 - Sep</option><option value="10">10 - Oct</option><option value="11">11 - Nov</option><option value="12">12 - Dic</option>
+            </select>
+          </div>
 
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-white/30 uppercase">Año oficio (editable)</label>
-              <input type="text" maxLength={4} value={oficioAnio} onChange={(e) => setOficioAnio(e.target.value.replace(/\D/g, "").slice(0, 4))} className="w-full bg-white/10 border border-white/10 rounded-xl p-2 text-xs text-center text-white outline-none focus:border-indigo-500" />
-            </div>
+          <div className="space-y-1 w-24">
+            <label className="text-[10px] font-bold text-white/30 uppercase">Año oficio</label>
+            <input type="text" maxLength={4} value={oficioAnio} onChange={(e) => setOficioAnio(e.target.value.replace(/\D/g, "").slice(0, 4))} className="w-full h-9 bg-white/10 border border-white/10 rounded-lg px-2 text-xs text-center text-white outline-none focus:border-indigo-500" />
           </div>
         </div>
 
@@ -151,7 +156,7 @@ export default function FormDelegaciones() {
           <div className="flex-1 min-w-[200px] space-y-1">
             <label className="text-[10px] font-bold text-white/30 uppercase">N° de Expediente</label>
             <div className="flex items-center bg-white/5 border border-white/10 rounded-xl overflow-hidden focus-within:border-indigo-500 transition-all">
-              <span className="bg-white/10 px-2 py-2 text-[10px] text-white/40 font-mono">IF-0901018</span>
+              <span className="bg-white/10 px-2 py-2 text-[10px] text-white/40 font-mono">{expedientePrefijo}</span>
               <input required type="text" value={expedienteSufijo} onChange={(e) => setExpedienteSufijo(e.target.value)} className="flex-1 bg-transparent p-2 text-xs text-white outline-none" />
             </div>
           </div>
@@ -167,7 +172,7 @@ export default function FormDelegaciones() {
             <span className="text-white/30">-</span>
             <input required type="text" maxLength={4} value={oficioAnio} onChange={(e) => setOficioAnio(e.target.value.replace(/\D/g, "").slice(0, 4))} className="w-14 bg-white/10 border border-white/10 rounded-lg p-1 text-xs text-center text-indigo-300 font-bold outline-none focus:border-indigo-500" placeholder="AAAA" />
             <span className="text-white/30">-</span>
-            <input required type="text" maxLength={6} value={oficio6D} onChange={(e) => setOficio6D(e.target.value)} className="w-20 bg-white/10 border border-white/10 rounded-lg p-1 text-xs text-center outline-none focus:border-indigo-500" placeholder="000000" />
+            <input required type="text" value={oficio6D} onChange={(e) => setOficio6D(e.target.value)} className="w-20 bg-white/10 border border-white/10 rounded-lg p-1 text-xs text-center outline-none focus:border-indigo-500" placeholder="000000" />
             <span className="text-[10px] text-white/50 font-mono">-O</span>
           </div>
 
@@ -218,7 +223,7 @@ export default function FormDelegaciones() {
               <select value={mesApertura} onChange={(e) => setMesApertura(e.target.value)} className="col-span-2 bg-neutral-900 border border-white/10 rounded-lg p-2 text-[10px] text-white outline-none">
                 <option value="01">Ene</option><option value="02">Feb</option><option value="03">Mar</option><option value="04">Abr</option><option value="05">May</option><option value="06">Jun</option><option value="07">Jul</option><option value="08">Ago</option><option value="09">Sep</option><option value="10">Oct</option><option value="11">Nov</option><option value="12">Dic</option>
               </select>
-              <div className="col-span-2 bg-white/5 border border-white/10 rounded-lg p-2 text-xs text-center text-white/80 font-bold">{anioBase || "AAAA"}</div>
+              <input type="text" maxLength={4} value={anioApertura} onChange={(e) => setAnioApertura(e.target.value.replace(/\D/g, "").slice(0, 4))} className="col-span-2 bg-white/5 border border-white/10 rounded-lg p-2 text-xs text-center text-white outline-none focus:border-indigo-500" />
             </div>
           </div>
 
@@ -230,7 +235,7 @@ export default function FormDelegaciones() {
               <select value={mesCierre} onChange={(e) => setMesCierre(e.target.value)} className="col-span-2 bg-neutral-900 border border-white/10 rounded-lg p-2 text-[10px] text-white outline-none">
                 <option value="01">Ene</option><option value="02">Feb</option><option value="03">Mar</option><option value="04">Abr</option><option value="05">May</option><option value="06">Jun</option><option value="07">Jul</option><option value="08">Ago</option><option value="09">Sep</option><option value="10">Oct</option><option value="11">Nov</option><option value="12">Dic</option>
               </select>
-              <div className="col-span-2 bg-white/5 border border-white/10 rounded-lg p-2 text-xs text-center text-white/80 font-bold">{anioBase || "AAAA"}</div>
+              <input type="text" maxLength={4} value={anioCierre} onChange={(e) => setAnioCierre(e.target.value.replace(/\D/g, "").slice(0, 4))} className="col-span-2 bg-white/5 border border-white/10 rounded-lg p-2 text-xs text-center text-white outline-none focus:border-indigo-500" />
             </div>
           </div>
 
