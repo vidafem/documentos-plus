@@ -15,7 +15,6 @@ export default function FormDelegaciones() {
   const [mesApertura, setMesApertura] = useState("12");
   const [mesCierre, setMesCierre] = useState("12");
   const [oficioAnio, setOficioAnio] = useState("2021");
-  const [destino, setDestino] = useState("Eliminación");
 
   // --- VALORES VARIABLES (Se limpian al guardar) ---
   const [expedienteSufijo, setExpedienteSufijo] = useState("");
@@ -101,7 +100,7 @@ export default function FormDelegaciones() {
       fecha_apertura: `${anioApertura}-${mesApertura}-${diaApertura.padStart(2, '0')}`,
       fecha_cierre: `${anioCierre}-${mesCierre}-${diaCierre.padStart(2, '0')}`,
       n_fojas: fojas,
-      destino_final: destino,
+      destino_final: "Eliminación",
       serie: "PROCEDIMIENTOS INVESTIGATIVOS",
       soporte: "Fisico"
     };
@@ -145,10 +144,6 @@ export default function FormDelegaciones() {
             </select>
           </div>
 
-          <div className="space-y-1 w-24">
-            <label className="text-[10px] font-bold text-white/30 uppercase">Año oficio</label>
-            <input type="text" maxLength={4} value={oficioAnio} onChange={(e) => setOficioAnio(e.target.value.replace(/\D/g, "").slice(0, 4))} className="w-full h-9 bg-white/10 border border-white/10 rounded-lg px-2 text-xs text-center text-white outline-none focus:border-indigo-500" />
-          </div>
         </div>
 
         {/* 2. EXPEDIENTE */}
@@ -170,7 +165,7 @@ export default function FormDelegaciones() {
             <span className="text-white/30">-</span>
             <input required type="text" maxLength={4} value={oficio4D} onChange={(e) => setOficio4D(e.target.value)} className="w-14 bg-white/10 border border-white/10 rounded-lg p-1 text-xs text-center outline-none focus:border-indigo-500" placeholder="0000" />
             <span className="text-white/30">-</span>
-            <input required type="text" maxLength={4} value={oficioAnio} onChange={(e) => setOficioAnio(e.target.value.replace(/\D/g, "").slice(0, 4))} className="w-14 bg-white/10 border border-white/10 rounded-lg p-1 text-xs text-center text-indigo-300 font-bold outline-none focus:border-indigo-500" placeholder="AAAA" />
+            <span className="w-14 bg-white/10 border border-white/10 rounded-lg p-1 text-xs text-center text-indigo-300 font-bold flex items-center justify-center">{oficioAnio}</span>
             <span className="text-white/30">-</span>
             <input required type="text" value={oficio6D} onChange={(e) => setOficio6D(e.target.value)} className="w-20 bg-white/10 border border-white/10 rounded-lg p-1 text-xs text-center outline-none focus:border-indigo-500" placeholder="000000" />
             <span className="text-[10px] text-white/50 font-mono">-O</span>
@@ -245,14 +240,6 @@ export default function FormDelegaciones() {
             <input required type="text" maxLength={3} value={fojas} onChange={(e) => setFojas(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl p-2 text-xs text-center text-white outline-none focus:border-indigo-500" placeholder="000" />
           </div>
         
-          {/* DESTINO */}
-          <div className="flex-1 min-w-[150px]">
-            <label className="text-[10px] font-bold text-white/30 uppercase ml-1">Destino Final</label>
-            <select value={destino} onChange={(e) => setDestino(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl p-2 text-xs text-white outline-none">
-              <option value="Eliminación">Eliminación</option>
-              <option value="Archivo">Archivo</option>
-            </select>
-          </div>
         </div>
 
         {/* 5. BOTÓN GUARDAR */}
