@@ -135,33 +135,6 @@ const DELEGACIONES_INSERT_COLUMNS = [
 ] as const;
 
 const RED_IF_FILLED_COLUMNS = new Set([
-  const normalizeDateValue = (value: string): string => {
-    const raw = String(value || "").trim();
-    if (!raw) return "";
-    const firstChunk = raw.split(" ")[0];
-    if (/^\d{4}[-/]\d{1,2}[-/]\d{1,2}$/.test(firstChunk)) {
-      const [y, m, d] = firstChunk.split(/[/-]/);
-      return `${y.padStart(4, "0")}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
-    }
-    if (/^\d{1,2}[-/]\d{1,2}[-/]\d{4}$/.test(firstChunk)) {
-      const [d, m, y] = firstChunk.split(/[/-]/);
-      return `${y.padStart(4, "0")}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
-    }
-    return "";
-  };
-
-  const isoDateToExcelSerial = (value: string): number | null => {
-    const normalized = normalizeDateValue(value);
-    if (!normalized) return null;
-    const [yearText, monthText, dayText] = normalized.split("-");
-    const year = Number(yearText);
-    const month = Number(monthText);
-    const day = Number(dayText);
-    if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null;
-    const utcValue = Date.UTC(year, month - 1, day);
-    const excelEpoch = Date.UTC(1899, 11, 30);
-    return (utcValue - excelEpoch) / 86400000;
-  };
   "DELITO/DELEGACION",
   "DELEGACION/RECEPCI",
   "RECEPCION/AGENTE",
@@ -169,6 +142,34 @@ const RED_IF_FILLED_COLUMNS = new Set([
   "AÑO_DE_RECEPCION_POR_",
   "AÑO_DE_CUMPLIMIENTO",
 ]);
+
+const normalizeDateValue = (value: string): string => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const firstChunk = raw.split(" ")[0];
+  if (/^\d{4}[-/]\d{1,2}[-/]\d{1,2}$/.test(firstChunk)) {
+    const [y, m, d] = firstChunk.split(/[/-]/);
+    return `${y.padStart(4, "0")}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+  }
+  if (/^\d{1,2}[-/]\d{1,2}[-/]\d{4}$/.test(firstChunk)) {
+    const [d, m, y] = firstChunk.split(/[/-]/);
+    return `${y.padStart(4, "0")}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+  }
+  return "";
+};
+
+const isoDateToExcelSerial = (value: string): number | null => {
+  const normalized = normalizeDateValue(value);
+  if (!normalized) return null;
+  const [yearText, monthText, dayText] = normalized.split("-");
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null;
+  const utcValue = Date.UTC(year, month - 1, day);
+  const excelEpoch = Date.UTC(1899, 11, 30);
+  return (utcValue - excelEpoch) / 86400000;
+};
 
 const EDITABLE_FIELDS = DELEGACIONES_HEADERS.filter((header) => header !== "ORDEN");
 
