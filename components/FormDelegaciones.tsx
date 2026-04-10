@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import Notification from "./Notification";
 
@@ -8,13 +8,12 @@ export default function FormDelegaciones() {
   const [isLoading, setIsLoading] = useState(false);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   // --- VALORES PERSISTENTES (Sticky) ---
-  const [caja, setCaja] = useState("1");
-  const [tomo, setTomo] = useState("1/2");
-  const [destino, setDestino] = useState("Eliminación");
-  const [anioApertura, setAnioApertura] = useState("2021");
+  const [anioBase, setAnioBase] = useState("2021");
+  const [mesBase, setMesBase] = useState("12");
   const [mesApertura, setMesApertura] = useState("12");
-  const [anioCierre, setAnioCierre] = useState("2021");
   const [mesCierre, setMesCierre] = useState("12");
+  const [oficioAnio, setOficioAnio] = useState("2021");
+  const [destino, setDestino] = useState("Eliminación");
 
   // --- VALORES VARIABLES (Se limpian al guardar) ---
   const [expedienteSufijo, setExpedienteSufijo] = useState("");
@@ -27,6 +26,15 @@ export default function FormDelegaciones() {
   const [delito, setDelito] = useState("");
   const [sugerencias, setSugerencias] = useState<{ delito: string }[]>([]);
   const [sospechosos, setSospechosos] = useState("");
+
+  useEffect(() => {
+    setMesApertura(mesBase);
+    setMesCierre(mesBase);
+  }, [mesBase]);
+
+  useEffect(() => {
+    setOficioAnio(anioBase);
+  }, [anioBase]);
 
   const COL_DELITO_CANDIDATAS = [
     "DELITO_TIPIFICADO_EN_DELEGACION",
@@ -75,15 +83,15 @@ export default function FormDelegaciones() {
     e.preventDefault();
     setIsLoading(true);
    
-    const descFinal = `Oficio No.FPG-FEIFO${oficioN}-${oficio4D}-${anioApertura}-${oficio6D}-O; Delito: ${formatTitleCase(delito)}; Sospechosos: ${formatTitleCase(sospechosos)}.`;
+    const descFinal = `Oficio No.FPG-FEIFO${oficioN}-${oficio4D}-${oficioAnio}-${oficio6D}-O; Delito: ${formatTitleCase(delito)}; Sospechosos: ${formatTitleCase(sospechosos)}.`;
 
     const registroFinal = {
-      n_caja: caja,
+      n_caja: "",
       expediente: `IF-0901018${expedienteSufijo}`,
-      n_tomo: tomo,
+      n_tomo: "",
       descripcion: descFinal,
-      fecha_apertura: `${anioApertura}-${mesApertura}-${diaApertura.padStart(2, '0')}`,
-      fecha_cierre: `${anioCierre}-${mesCierre}-${diaCierre.padStart(2, '0')}`,
+      fecha_apertura: `${anioBase}-${mesApertura}-${diaApertura.padStart(2, '0')}`,
+      fecha_cierre: `${anioBase}-${mesCierre}-${diaCierre.padStart(2, '0')}`,
       n_fojas: fojas,
       destino_final: destino,
       serie: "PROCEDIMIENTOS INVESTIGATIVOS",
@@ -115,13 +123,31 @@ export default function FormDelegaciones() {
       )}
       <form onSubmit={handleSubmit} className="bg-white/5 rounded-3xl p-6 border border-white/5 space-y-6 animate-in fade-in duration-500">
         
-        {/* 1. CAJA, EXPEDIENTE Y TOMO */}
-        <div className="flex flex-wrap gap-4 items-end">
-          <div className="w-16 space-y-1">
-            <label className="text-[10px] font-black text-indigo-300 uppercase">Caja</label>
-            <input required type="text" value={caja} onChange={(e) => setCaja(e.target.value)} className="w-full bg-white/10 border border-indigo-500/30 rounded-xl p-2 text-xs text-center text-white outline-none focus:border-indigo-500" />
-          </div>
+        {/* 1. CONTROLES CONSTANTES */}
+        <div className="bg-white/5 p-4 rounded-2xl border border-white/5 space-y-3">
+          <label className="text-[10px] font-black text-indigo-300 uppercase tracking-widest">Parámetros constantes</label>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-white/30 uppercase">Año base</label>
+              <input type="text" maxLength={4} value={anioBase} onChange={(e) => setAnioBase(e.target.value.replace(/\D/g, "").slice(0, 4))} className="w-full bg-white/10 border border-indigo-500/30 rounded-xl p-2 text-xs text-center text-white outline-none focus:border-indigo-500" />
+            </div>
 
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-white/30 uppercase">Mes base</label>
+              <select value={mesBase} onChange={(e) => setMesBase(e.target.value)} className="w-full bg-neutral-900 border border-white/10 rounded-xl p-2 text-xs text-white outline-none">
+                <option value="01">01 - Ene</option><option value="02">02 - Feb</option><option value="03">03 - Mar</option><option value="04">04 - Abr</option><option value="05">05 - May</option><option value="06">06 - Jun</option><option value="07">07 - Jul</option><option value="08">08 - Ago</option><option value="09">09 - Sep</option><option value="10">10 - Oct</option><option value="11">11 - Nov</option><option value="12">12 - Dic</option>
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-white/30 uppercase">Año oficio (editable)</label>
+              <input type="text" maxLength={4} value={oficioAnio} onChange={(e) => setOficioAnio(e.target.value.replace(/\D/g, "").slice(0, 4))} className="w-full bg-white/10 border border-white/10 rounded-xl p-2 text-xs text-center text-white outline-none focus:border-indigo-500" />
+            </div>
+          </div>
+        </div>
+
+        {/* 2. EXPEDIENTE */}
+        <div className="flex flex-wrap gap-4 items-end">
           <div className="flex-1 min-w-[200px] space-y-1">
             <label className="text-[10px] font-bold text-white/30 uppercase">N° de Expediente</label>
             <div className="flex items-center bg-white/5 border border-white/10 rounded-xl overflow-hidden focus-within:border-indigo-500 transition-all">
@@ -129,14 +155,9 @@ export default function FormDelegaciones() {
               <input required type="text" value={expedienteSufijo} onChange={(e) => setExpedienteSufijo(e.target.value)} className="flex-1 bg-transparent p-2 text-xs text-white outline-none" />
             </div>
           </div>
-
-          <div className="w-20 space-y-1">
-            <label className="text-[10px] font-black text-indigo-300 uppercase">Tomo</label>
-            <input required type="text" value={tomo} onChange={(e) => setTomo(e.target.value)} className="w-full bg-white/10 border border-indigo-500/30 rounded-xl p-2 text-xs text-center text-white outline-none" />
-          </div>
         </div>
 
-        {/* 2. DATOS DEL OFICIO Y BUSCADOR DE DELITOS */}
+        {/* 3. DATOS DEL OFICIO Y BUSCADOR DE DELITOS */}
         <div className="bg-white/5 p-4 rounded-2xl border border-white/5 space-y-4">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[10px] text-white/50 font-mono">Oficio No.FPG-FEIFO</span>
@@ -144,7 +165,7 @@ export default function FormDelegaciones() {
             <span className="text-white/30">-</span>
             <input required type="text" maxLength={4} value={oficio4D} onChange={(e) => setOficio4D(e.target.value)} className="w-14 bg-white/10 border border-white/10 rounded-lg p-1 text-xs text-center outline-none focus:border-indigo-500" placeholder="0000" />
             <span className="text-white/30">-</span>
-            <span className="text-xs text-indigo-300 font-bold">{anioApertura}</span>
+            <input required type="text" maxLength={4} value={oficioAnio} onChange={(e) => setOficioAnio(e.target.value.replace(/\D/g, "").slice(0, 4))} className="w-14 bg-white/10 border border-white/10 rounded-lg p-1 text-xs text-center text-indigo-300 font-bold outline-none focus:border-indigo-500" placeholder="AAAA" />
             <span className="text-white/30">-</span>
             <input required type="text" maxLength={6} value={oficio6D} onChange={(e) => setOficio6D(e.target.value)} className="w-20 bg-white/10 border border-white/10 rounded-lg p-1 text-xs text-center outline-none focus:border-indigo-500" placeholder="000000" />
             <span className="text-[10px] text-white/50 font-mono">-O</span>
@@ -187,7 +208,7 @@ export default function FormDelegaciones() {
           </div>
         </div>
 
-        {/* 3. FECHAS, FOJAS Y DESTINO (REESTRUCTURADO) */}
+        {/* 4. FECHAS, FOJAS Y DESTINO (REESTRUCTURADO) */}
         <div className="flex flex-wrap gap-4 items-end">
           {/* APERTURA */}
           <div className="flex-1 min-w-[220px] bg-white/5 p-4 rounded-2xl border border-white/5 space-y-2">
@@ -197,7 +218,7 @@ export default function FormDelegaciones() {
               <select value={mesApertura} onChange={(e) => setMesApertura(e.target.value)} className="col-span-2 bg-neutral-900 border border-white/10 rounded-lg p-2 text-[10px] text-white outline-none">
                 <option value="01">Ene</option><option value="02">Feb</option><option value="03">Mar</option><option value="04">Abr</option><option value="05">May</option><option value="06">Jun</option><option value="07">Jul</option><option value="08">Ago</option><option value="09">Sep</option><option value="10">Oct</option><option value="11">Nov</option><option value="12">Dic</option>
               </select>
-              <input required type="text" maxLength={4} value={anioApertura} onChange={(e) => setAnioApertura(e.target.value)} className="col-span-2 bg-white/5 border border-white/10 rounded-lg p-2 text-xs text-center text-white outline-none" />
+              <div className="col-span-2 bg-white/5 border border-white/10 rounded-lg p-2 text-xs text-center text-white/80 font-bold">{anioBase || "AAAA"}</div>
             </div>
           </div>
 
@@ -209,7 +230,7 @@ export default function FormDelegaciones() {
               <select value={mesCierre} onChange={(e) => setMesCierre(e.target.value)} className="col-span-2 bg-neutral-900 border border-white/10 rounded-lg p-2 text-[10px] text-white outline-none">
                 <option value="01">Ene</option><option value="02">Feb</option><option value="03">Mar</option><option value="04">Abr</option><option value="05">May</option><option value="06">Jun</option><option value="07">Jul</option><option value="08">Ago</option><option value="09">Sep</option><option value="10">Oct</option><option value="11">Nov</option><option value="12">Dic</option>
               </select>
-              <input required type="text" maxLength={4} value={anioCierre} onChange={(e) => setAnioCierre(e.target.value)} className="col-span-2 bg-white/5 border border-white/10 rounded-lg p-2 text-xs text-center text-white outline-none" />
+              <div className="col-span-2 bg-white/5 border border-white/10 rounded-lg p-2 text-xs text-center text-white/80 font-bold">{anioBase || "AAAA"}</div>
             </div>
           </div>
 
@@ -229,7 +250,7 @@ export default function FormDelegaciones() {
           </div>
         </div>
 
-        {/* 4. BOTÓN GUARDAR */}
+        {/* 5. BOTÓN GUARDAR */}
         <div className="flex justify-end pt-2">
           <button 
             type="submit" 
