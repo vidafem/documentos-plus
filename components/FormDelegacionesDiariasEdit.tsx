@@ -216,6 +216,7 @@ export default function FormDelegacionesDiarias({
   const [fiscalSugerencias, setFiscalSugerencias] = useState<FiscalSuggestion[]>([]);
   const [fiscaliasDisponibles, setFiscaliasDisponibles] = useState<string[]>([]);
   const [codFiscalSeleccionado, setCodFiscalSeleccionado] = useState("");
+  const [fiscalCodPorNumfis, setFiscalCodPorNumfis] = useState<Record<string, string>>({});
   const [mostrarModalNuevaFiscalia, setMostrarModalNuevaFiscalia] = useState(false);
   const [nuevaFiscaliaNumfis, setNuevaFiscaliaNumfis] = useState("");
   const [nuevoFiscalCod, setNuevoFiscalCod] = useState("");
@@ -302,7 +303,14 @@ export default function FormDelegacionesDiarias({
         .limit(200);
 
       const filas = (data || []) as Array<Record<string, unknown>>;
-      const codDetectado = String(filas.find((fila) => fila.COD)?.COD ?? "").trim();
+      const codPorNumfis = filas.reduce<Record<string, string>>((acc, fila) => {
+        const numfis = String(fila.NUMFIS ?? "").trim();
+        const cod = String(fila.COD ?? "").trim();
+        if (numfis && cod && !acc[numfis]) {
+          acc[numfis] = cod;
+        }
+        return acc;
+      }, {});
       const opcionesUnicas = Array.from(
         new Set(
           filas
@@ -311,8 +319,15 @@ export default function FormDelegacionesDiarias({
         )
       ).sort((a, b) => Number(a) - Number(b));
 
+      const unidadSeleccionada = opcionesUnicas.includes(mapped.unidadEspecializadaFiscalia)
+        ? mapped.unidadEspecializadaFiscalia
+        : (opcionesUnicas[0] || "");
+      const codDetectado = codPorNumfis[unidadSeleccionada] || String(filas.find((fila) => fila.COD)?.COD ?? "").trim();
+
+      setFiscalCodPorNumfis(codPorNumfis);
       setCodFiscalSeleccionado(codDetectado);
       setFiscaliasDisponibles(opcionesUnicas);
+      setFormData((prev) => ({ ...prev, unidadEspecializadaFiscalia: unidadSeleccionada }));
     };
 
     void hydrateFromRecord();
@@ -492,6 +507,7 @@ export default function FormDelegacionesDiarias({
     if (!nombreFiscal) {
       setFiscaliasDisponibles([]);
       setCodFiscalSeleccionado("");
+      setFiscalCodPorNumfis({});
       setFormData((prev) => ({ ...prev, unidadEspecializadaFiscalia: "" }));
       return;
     }
@@ -506,11 +522,19 @@ export default function FormDelegacionesDiarias({
       console.error("Error cargando fiscalias:", error.message);
       setFiscaliasDisponibles([]);
       setCodFiscalSeleccionado("");
+      setFiscalCodPorNumfis({});
       return;
     }
 
     const filas = (data || []) as Array<Record<string, unknown>>;
-    const codDetectado = String(filas.find((fila) => fila.COD)?.COD ?? "").trim();
+    const codPorNumfis = filas.reduce<Record<string, string>>((acc, fila) => {
+      const numfis = String(fila.NUMFIS ?? "").trim();
+      const cod = String(fila.COD ?? "").trim();
+      if (numfis && cod && !acc[numfis]) {
+        acc[numfis] = cod;
+      }
+      return acc;
+    }, {});
 
     const opcionesUnicas = Array.from(
       new Set(
@@ -520,13 +544,17 @@ export default function FormDelegacionesDiarias({
       )
     ).sort((a, b) => Number(a) - Number(b));
 
+    const unidadSeleccionada = opcionesUnicas.includes(formData.unidadEspecializadaFiscalia)
+      ? formData.unidadEspecializadaFiscalia
+      : (opcionesUnicas[0] || "");
+    const codDetectado = codPorNumfis[unidadSeleccionada] || String(filas.find((fila) => fila.COD)?.COD ?? "").trim();
+
+    setFiscalCodPorNumfis(codPorNumfis);
     setCodFiscalSeleccionado(codDetectado);
     setFiscaliasDisponibles(opcionesUnicas);
     setFormData((prev) => ({
       ...prev,
-      unidadEspecializadaFiscalia: opcionesUnicas.includes(prev.unidadEspecializadaFiscalia)
-        ? prev.unidadEspecializadaFiscalia
-        : (opcionesUnicas[0] || ""),
+      unidadEspecializadaFiscalia: unidadSeleccionada,
     }));
   };
 
@@ -534,6 +562,8 @@ export default function FormDelegacionesDiarias({
     const textoMayus = texto.toUpperCase();
     setFormData((prev) => ({ ...prev, apellidosNombresFiscal: textoMayus, unidadEspecializadaFiscalia: "" }));
     setFiscaliasDisponibles([]);
+    setFiscalCodPorNumfis({});
+    setCodFiscalSeleccionado("");
 
     if (textoMayus.trim().length < 2) {
       setFiscalSugerencias([]);
@@ -587,6 +617,7 @@ export default function FormDelegacionesDiarias({
     }
 
     handleChange("unidadEspecializadaFiscalia", value);
+    setCodFiscalSeleccionado(fiscalCodPorNumfis[value] || codFiscalSeleccionado);
   };
 
   const guardarNuevaFiscalia = async () => {
@@ -805,6 +836,7 @@ export default function FormDelegacionesDiarias({
     setFiscalSugerencias([]);
     setFiscaliasDisponibles([]);
     setCodFiscalSeleccionado("");
+    setFiscalCodPorNumfis({});
 
     if (mode === "edit") {
       onSavedEdit?.();
