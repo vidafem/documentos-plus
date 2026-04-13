@@ -8,7 +8,7 @@ type SourceKey = "delegaciones" | "partes" | "delegaciones_viejas" | "partes_vie
 type SourceConfig = {
   key: SourceKey;
   label: string;
-  table: "DELEGACIONES" | "PARTES" | "delegaciones_viejas" | "partes_viejas";
+  table: "Arch_dele" | "PARTES" | "delegaciones_viejas" | "partes_viejas";
   column: string;
   color: string;
 };
@@ -41,8 +41,8 @@ const SOURCES: SourceConfig[] = [
   {
     key: "delegaciones",
     label: "Delegaciones",
-    table: "DELEGACIONES",
-    column: "FECHA_CUMPLIMIENTO_O_DESCARGO_DE_DELEGACION",
+    table: "Arch_dele",
+    column: "CIERRE",
     color: "#22d3ee",
   },
   {
@@ -212,11 +212,6 @@ const createEmptyMonthlyStatus = (): MonthlyDelegacionesStatus => ({
   peritoConMasPendientes: "Sin pendientes",
   pendientesPeritoTop: 0,
 });
-
-const SOURCE_MAP = SOURCES.reduce<Record<SourceKey, SourceConfig>>((acc, source) => {
-  acc[source.key] = source;
-  return acc;
-}, {} as Record<SourceKey, SourceConfig>);
 
 const CURRENT_YEAR = String(new Date().getFullYear());
 
@@ -628,22 +623,11 @@ export default function DashboardOverview() {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <Ring value={row.monthProgress} color={row.color} />
                   <Ring value={row.yearProgress} color="#34d399" />
                 </div>
               </div>
 
               <div className="mt-4 space-y-3">
-                <div>
-                  <div className="flex justify-between text-[11px] font-bold text-white/70 mb-1">
-                    <span>Progreso del mes</span>
-                    <span>{row.monthProgress}%</span>
-                  </div>
-                  <div className="h-2 rounded-full bg-white/10 overflow-hidden">
-                    <div className="h-full rounded-full" style={{ width: `${row.monthProgress}%`, backgroundColor: row.color }} />
-                  </div>
-                </div>
-
                 <div>
                   <div className="flex justify-between text-[11px] font-bold text-white/70 mb-1">
                     <span>Progreso del año</span>
@@ -654,13 +638,7 @@ export default function DashboardOverview() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 mt-2">
-                  <div className="rounded-xl border border-white/10 bg-black/25 p-2">
-                    <p className="text-[10px] text-white/45 uppercase font-bold">Mes</p>
-                    <p className={`text-xs font-black ${row.monthClosed ? "text-emerald-300" : "text-amber-300"}`}>
-                      {row.hasData ? (row.monthClosed ? "Cerrado" : `Faltan ${row.remainingMonthDays} día(s)`) : "Sin datos"}
-                    </p>
-                  </div>
+                <div className="grid grid-cols-1 gap-2 mt-2">
                   <div className="rounded-xl border border-white/10 bg-black/25 p-2">
                     <p className="text-[10px] text-white/45 uppercase font-bold">Año</p>
                     <p className={`text-xs font-black ${row.yearClosed ? "text-emerald-300" : "text-amber-300"}`}>
