@@ -489,7 +489,7 @@ export default function DelegacionesFlagranciaModule() {
 
           if (error) break;
 
-          const chunk = (data || []) as GenericRow[];
+          const chunk = ((data || []) as unknown[]) as GenericRow[];
           chunk.forEach((row) => {
             const normalized = normalizeDateValue(toText(row[column]));
             const year = normalized.split("-")[0] || "";
