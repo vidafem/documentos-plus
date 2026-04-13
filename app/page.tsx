@@ -25,13 +25,13 @@ import { syncDelegacionesFromFlagranciaGlobal } from "@/components/DelegacionesF
 import { syncArchDeleFromFlagranciaGlobal } from "@/components/ArchivoDelegacionesModule";
 
 // Definición estricta de tipos
-type ActiveModule = "delegaciones" | "delegaciones_diarias" | "partes" | "partes_viejos" | "archivo_delegaciones";
-type ViewMode = "dashboard" | "add" | "edit" | "download" | "delegaciones_flagrancia" | "para_firmar" | "bases_partes";
+type ActiveModule = "dashboard" | "delegaciones" | "delegaciones_diarias" | "partes" | "partes_viejos" | "archivo_delegaciones";
+type ViewMode = "add" | "edit" | "download" | "delegaciones_flagrancia" | "para_firmar" | "bases_partes";
 
 export default function Home() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [activeModule, setActiveModule] = useState<ActiveModule>("delegaciones");
-  const [view, setView] = useState<ViewMode>("dashboard"); 
+  const [activeModule, setActiveModule] = useState<ActiveModule>("dashboard");
+  const [view, setView] = useState<ViewMode>("add"); 
   const [syncingAllTables, setSyncingAllTables] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const [authChecking, setAuthChecking] = useState(true);
@@ -256,8 +256,6 @@ export default function Home() {
         sidebarRef={sidebarRef}
         isOpen={isSidebarOpen} 
         setIsOpen={setIsSidebarOpen} 
-        activeView={view}
-        onDashboard={() => setView("dashboard")}
         activeModule={activeModule} 
         setActiveModule={setActiveModule}
         onSyncAllTables={handleSyncAllTables}
@@ -301,7 +299,7 @@ export default function Home() {
         <div className="flex-1 min-w-0 bg-white/5 backdrop-blur-xl border border-white/10 rounded-[2rem] flex flex-col p-8 overflow-hidden">
           <header className="mb-6 text-center">
             <h2 className="text-2xl font-bold tracking-tight text-white uppercase">
-              {view === "dashboard"
+              {activeModule === "dashboard"
                 ? "Dashboard Ejecutivo"
                 : activeModule === "delegaciones"
                 ? "Delegaciones Viejas"
@@ -318,7 +316,7 @@ export default function Home() {
             </p>
           </header>
 
-          {(activeModule !== "archivo_delegaciones" || view === "dashboard") && (
+          {activeModule !== "archivo_delegaciones" && activeModule !== "dashboard" && (
             <ControlPanel 
               activeView={view}
               onAdd={() => setView("add")}
@@ -334,9 +332,9 @@ export default function Home() {
           )}
 
           <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar mt-6">
-            {view === "dashboard" && <DashboardOverview />}
+            {activeModule === "dashboard" && <DashboardOverview />}
 
-            {activeModule === "archivo_delegaciones" && view !== "dashboard" && <ArchivoDelegacionesModule />}
+            {activeModule === "archivo_delegaciones" && <ArchivoDelegacionesModule />}
 
             {view === "add" && (
               activeModule === "delegaciones"

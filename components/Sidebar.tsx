@@ -2,15 +2,12 @@
 
 import type { RefObject } from "react";
 
-type ActiveModule = "delegaciones" | "delegaciones_diarias" | "partes" | "partes_viejos" | "archivo_delegaciones";
-type ViewMode = "dashboard" | "add" | "edit" | "download" | "delegaciones_flagrancia" | "para_firmar" | "bases_partes";
+type ActiveModule = "dashboard" | "delegaciones" | "delegaciones_diarias" | "partes" | "partes_viejos" | "archivo_delegaciones";
 
 interface SidebarProps {
   sidebarRef: RefObject<HTMLElement | null>;
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
-  activeView: ViewMode;
-  onDashboard: () => void;
   activeModule: ActiveModule;
   setActiveModule: (module: ActiveModule) => void;
   onSyncAllTables: () => void;
@@ -21,8 +18,6 @@ export default function Sidebar({
   sidebarRef,
   isOpen,
   setIsOpen,
-  activeView,
-  onDashboard,
   activeModule,
   setActiveModule,
   onSyncAllTables,
@@ -45,8 +40,8 @@ export default function Sidebar({
         
         <nav className="flex-1 space-y-3">
           <button
-            onClick={onDashboard}
-            className={`w-full glass-btn p-4 rounded-3xl cursor-pointer font-semibold flex items-center gap-4 transition-all ${activeView === "dashboard" ? "bg-cyan-500/20 border-cyan-300/30 text-cyan-100" : "text-white/40 border-transparent"}`}
+            onClick={() => setActiveModule("dashboard")}
+            className={`w-full glass-btn p-4 rounded-3xl cursor-pointer font-semibold flex items-center gap-4 transition-all ${activeModule === "dashboard" ? "bg-cyan-500/20 border-cyan-300/30 text-cyan-100" : "text-white/40 border-transparent"}`}
           >
             <span className="text-xl">📈</span> Dashboard
           </button>
