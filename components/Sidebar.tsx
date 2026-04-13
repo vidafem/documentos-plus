@@ -27,7 +27,7 @@ export default function Sidebar({
     <aside ref={sidebarRef} className={`absolute left-0 top-0 z-40 h-full transition-all duration-500 ease-[cubic-bezier(0.25,1,0.5,1)] flex flex-col ${
       isOpen ? "w-80 opacity-100 translate-x-0" : "w-80 opacity-0 -translate-x-6 pointer-events-none"
     }`}>
-      <div className="liquid-glass h-full w-full rounded-[2.5rem] flex flex-col p-6 overflow-hidden">
+      <div className="liquid-glass h-full w-full rounded-[2.5rem] flex flex-col p-6 overflow-hidden bg-slate-950/55 backdrop-blur-2xl border border-cyan-300/15 shadow-[0_18px_60px_rgba(0,0,0,0.55)]">
         <div className="flex items-center justify-between mb-10 px-2">
           <div className="flex flex-col">
             <h1 className="text-2xl font-bold tracking-tight text-white/90">DocuPlus</h1>
