@@ -256,6 +256,8 @@ export default function Home() {
         sidebarRef={sidebarRef}
         isOpen={isSidebarOpen} 
         setIsOpen={setIsSidebarOpen} 
+        activeView={view}
+        onDashboard={() => setView("dashboard")}
         activeModule={activeModule} 
         setActiveModule={setActiveModule}
         onSyncAllTables={handleSyncAllTables}
@@ -299,7 +301,9 @@ export default function Home() {
         <div className="flex-1 min-w-0 bg-white/5 backdrop-blur-xl border border-white/10 rounded-[2rem] flex flex-col p-8 overflow-hidden">
           <header className="mb-6 text-center">
             <h2 className="text-2xl font-bold tracking-tight text-white uppercase">
-              {activeModule === "delegaciones"
+              {view === "dashboard"
+                ? "Dashboard Ejecutivo"
+                : activeModule === "delegaciones"
                 ? "Delegaciones Viejas"
                 : activeModule === "delegaciones_diarias"
                 ? "Delegaciones Diarias"
@@ -317,7 +321,6 @@ export default function Home() {
           {(activeModule !== "archivo_delegaciones" || view === "dashboard") && (
             <ControlPanel 
               activeView={view}
-              onDashboard={() => setView("dashboard")}
               onAdd={() => setView("add")}
               onEdit={() => setView("edit")}
               onDownload={() => setView("download")}

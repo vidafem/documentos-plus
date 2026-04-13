@@ -3,11 +3,14 @@
 import type { RefObject } from "react";
 
 type ActiveModule = "delegaciones" | "delegaciones_diarias" | "partes" | "partes_viejos" | "archivo_delegaciones";
+type ViewMode = "dashboard" | "add" | "edit" | "download" | "delegaciones_flagrancia" | "para_firmar" | "bases_partes";
 
 interface SidebarProps {
   sidebarRef: RefObject<HTMLElement | null>;
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
+  activeView: ViewMode;
+  onDashboard: () => void;
   activeModule: ActiveModule;
   setActiveModule: (module: ActiveModule) => void;
   onSyncAllTables: () => void;
@@ -18,6 +21,8 @@ export default function Sidebar({
   sidebarRef,
   isOpen,
   setIsOpen,
+  activeView,
+  onDashboard,
   activeModule,
   setActiveModule,
   onSyncAllTables,
@@ -39,6 +44,12 @@ export default function Sidebar({
         </div>
         
         <nav className="flex-1 space-y-3">
+          <button
+            onClick={onDashboard}
+            className={`w-full glass-btn p-4 rounded-3xl cursor-pointer font-semibold flex items-center gap-4 transition-all ${activeView === "dashboard" ? "bg-cyan-500/20 border-cyan-300/30 text-cyan-100" : "text-white/40 border-transparent"}`}
+          >
+            <span className="text-xl">📈</span> Dashboard
+          </button>
           <button
             onClick={() => setActiveModule("delegaciones_diarias")}
             className={`w-full glass-btn p-4 rounded-3xl cursor-pointer font-semibold flex items-center gap-4 transition-all ${activeModule === "delegaciones_diarias" ? "bg-white/10 border-white/20 text-white" : "text-white/40 border-transparent"}`}
