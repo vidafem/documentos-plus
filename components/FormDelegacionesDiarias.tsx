@@ -1151,7 +1151,7 @@ export default function FormDelegacionesDiarias() {
             ))}
             <option value="__NUEVA_FISCALIA__" className="text-black bg-white">+ Agregar nueva fiscalia</option>
           </select>
-          <p className="text-[10px] text-white/50 font-mono uppercase">COD: <span className="text-white/80">{codFiscalSeleccionado || "--"}</span></p>
+          <p className="text-[10px] text-white/50 font-mono uppercase">COD: <span className="text-emerald-300">{codFiscalSeleccionado || "--"}</span></p>
         </div>
 
         <div className="space-y-1 w-fit self-start">
