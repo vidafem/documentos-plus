@@ -17,8 +17,8 @@ export const metadata: Metadata = {
   description: "Sistema de gestión de archivo para delegaciones y partes policiales.",
   manifest: "/manifest.json",
   icons: {
-    icon: "/icon.svg",
-    apple: "/icon.svg",
+    icon: "/icon",
+    apple: "/apple-icon",
   },
 };
 
