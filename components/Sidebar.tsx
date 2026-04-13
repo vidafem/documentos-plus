@@ -75,6 +75,12 @@ export default function Sidebar({
           >
             <span className="text-xl">🧾</span> Partes Viejos
           </button>
+          <button
+            onClick={() => window.open("https://ecumbe.github.io/PERITOS2.0/index.html", "_blank", "noopener,noreferrer")}
+            className="w-full glass-btn p-4 rounded-3xl cursor-pointer font-semibold flex items-center gap-4 transition-all text-white/40 border-transparent hover:text-cyan-200"
+          >
+            <span className="text-xl">🌐</span> perito2.0
+          </button>
         </nav>
 
         <div className="pt-4 border-t border-white/10">
