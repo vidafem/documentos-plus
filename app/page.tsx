@@ -153,15 +153,8 @@ export default function Home() {
   useEffect(() => {
     if (!isSidebarOpen) return;
 
-    let timeoutId: ReturnType<typeof setTimeout>;
-
     const closeSidebar = () => {
       setIsSidebarOpen(false);
-    };
-
-    const resetAutoClose = () => {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(closeSidebar, 3000);
     };
 
     const handlePointerDown = (event: MouseEvent | TouchEvent) => {
@@ -173,28 +166,15 @@ export default function Home() {
 
       if (!clickedInsideSidebar && !clickedOpenButton) {
         closeSidebar();
-        return;
       }
-
-      resetAutoClose();
     };
 
-    const handleActivity = () => {
-      resetAutoClose();
-    };
-
-    resetAutoClose();
     document.addEventListener("mousedown", handlePointerDown);
     document.addEventListener("touchstart", handlePointerDown);
-    document.addEventListener("mousemove", handleActivity);
-    document.addEventListener("keydown", handleActivity);
 
     return () => {
-      clearTimeout(timeoutId);
       document.removeEventListener("mousedown", handlePointerDown);
       document.removeEventListener("touchstart", handlePointerDown);
-      document.removeEventListener("mousemove", handleActivity);
-      document.removeEventListener("keydown", handleActivity);
     };
   }, [isSidebarOpen]);
 
