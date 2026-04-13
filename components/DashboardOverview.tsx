@@ -198,7 +198,7 @@ export default function DashboardOverview() {
             throw new Error(`Error en ${source.label}: ${error.message}`);
           }
 
-          const row = ((data || []) as Array<Record<string, unknown>>)[0] || {};
+          const row = (((data || []) as unknown[]) as Array<Record<string, unknown>>)[0] || {};
           return toStatus(source, row[source.column]);
         })
       );
