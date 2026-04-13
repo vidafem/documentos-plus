@@ -41,6 +41,12 @@ export default function Home() {
   const sidebarRef = useRef<HTMLElement | null>(null);
   const openSidebarButtonRef = useRef<HTMLButtonElement | null>(null);
   const allowedEmail = (process.env.NEXT_PUBLIC_ALLOWED_EMAIL || "").trim().toLowerCase();
+  const deploymentVersionRaw = (
+    process.env.NEXT_PUBLIC_APP_VERSION || process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA || ""
+  ).trim();
+  const deploymentVersion = deploymentVersionRaw
+    ? deploymentVersionRaw.slice(0, 7).toUpperCase()
+    : "SIN-TAG";
 
   const handleSyncAllTables = async () => {
     if (syncingAllTables) return;
@@ -284,8 +290,11 @@ export default function Home() {
       )}
 
       <section className="flex-1 min-w-0 flex flex-col h-full relative z-10 transition-all duration-300">
-        <div className="absolute top-2 right-2 z-50 flex items-center gap-2 bg-white/10 border border-white/20 rounded-xl px-3 py-2 backdrop-blur-md">
-          <span className="text-[10px] text-white/70 font-semibold max-w-[180px] truncate">{session.user.email}</span>
+        <div className="absolute top-2 right-2 z-50 flex items-center gap-3 bg-white/10 border border-white/20 rounded-xl px-3 py-2 backdrop-blur-md">
+          <div className="flex flex-col leading-tight">
+            <span className="text-[10px] text-white/70 font-semibold max-w-[180px] truncate">{session.user.email}</span>
+            <span className="text-[9px] text-cyan-200/90 font-bold tracking-wide uppercase">Actualizacion: {deploymentVersion}</span>
+          </div>
           <button
             onClick={() => void handleSignOut()}
             className="text-[10px] uppercase font-bold text-red-300 hover:text-red-200"
