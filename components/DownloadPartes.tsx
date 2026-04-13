@@ -64,7 +64,11 @@ const MONTH_OPTIONS = [
   { value: "12", label: "12 - Diciembre" },
 ] as const;
 
-export default function DownloadPartes() {
+type DownloadPartesProps = {
+  sourceTable?: "PARTES" | "partes_viejas";
+};
+
+export default function DownloadPartes({ sourceTable = "PARTES" }: DownloadPartesProps) {
   const [registros, setRegistros] = useState<ParteRegistro[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [filtroYear, setFiltroYear] = useState("");
@@ -85,7 +89,7 @@ export default function DownloadPartes() {
       while (true) {
         const to = from + PAGE_SIZE - 1;
         const { data, error } = await supabase
-          .from("PARTES")
+          .from(sourceTable)
           .select("fecha_cierre")
           .not("fecha_cierre", "is", null)
           .order("fecha_cierre", { ascending: false })
@@ -118,16 +122,16 @@ export default function DownloadPartes() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [sourceTable]);
 
   const fetchRegistros = useCallback(async () => {
-    let query = supabase.from("PARTES").select("*").order("created_at", { ascending: false });
+    let query = supabase.from(sourceTable).select("*").order("created_at", { ascending: false });
     if (filtroMes) {
       query = query.gte("fecha_cierre", `${filtroMes}-01`).lte("fecha_cierre", `${filtroMes}-31`);
     }
     const { data } = await query;
     return (data || []) as ParteRegistro[];
-  }, [filtroMes]);
+  }, [filtroMes, sourceTable]);
 
   const recargarRegistros = async () => {
     const data = await fetchRegistros();
