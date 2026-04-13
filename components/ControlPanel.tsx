@@ -2,6 +2,7 @@
 
 interface ControlPanelProps {
   activeView: string;
+  onDashboard?: () => void;
   onAdd: () => void;
   onEdit: () => void;
   onDownload: () => void;
@@ -15,6 +16,7 @@ interface ControlPanelProps {
 
 export default function ControlPanel({
   activeView,
+  onDashboard,
   onAdd,
   onEdit,
   onDownload,
@@ -27,6 +29,11 @@ export default function ControlPanel({
 }: ControlPanelProps) {
   return (
     <div className="flex gap-2 p-1 bg-black/20 rounded-2xl w-fit border border-white/5">
+      {onDashboard && (
+        <button onClick={onDashboard} className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${activeView === "dashboard" ? "bg-cyan-500/20 text-cyan-300 shadow-lg" : "text-white/40 hover:text-cyan-300"}`}>
+          <span>📈</span> Dashboard
+        </button>
+      )}
       <button onClick={onAdd} className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${activeView === "add" ? "bg-white/10 text-white shadow-lg" : "text-white/40 hover:text-white"}`}>
         <span>➕</span> Nuevo Registro
       </button>

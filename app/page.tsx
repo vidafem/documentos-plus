@@ -18,6 +18,7 @@ import DelegacionesFlagranciaModule from "@/components/DelegacionesFlagranciaMod
 import ArchivoDelegacionesModule from "@/components/ArchivoDelegacionesModule";
 import BasesPartesModule from "@/components/BasesPartesModule";
 import ParaFirmarModule from "@/components/ParaFirmarModule";
+import DashboardOverview from "@/components/DashboardOverview";
 import Notification from "@/components/Notification";
 import { supabase } from "@/lib/supabaseClient";
 import { syncDelegacionesFromFlagranciaGlobal } from "@/components/DelegacionesFlagranciaModule";
@@ -25,12 +26,12 @@ import { syncArchDeleFromFlagranciaGlobal } from "@/components/ArchivoDelegacion
 
 // Definición estricta de tipos
 type ActiveModule = "delegaciones" | "delegaciones_diarias" | "partes" | "partes_viejos" | "archivo_delegaciones";
-type ViewMode = "add" | "edit" | "download" | "delegaciones_flagrancia" | "para_firmar" | "bases_partes";
+type ViewMode = "dashboard" | "add" | "edit" | "download" | "delegaciones_flagrancia" | "para_firmar" | "bases_partes";
 
 export default function Home() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [activeModule, setActiveModule] = useState<ActiveModule>("delegaciones");
-  const [view, setView] = useState<ViewMode>("add"); 
+  const [view, setView] = useState<ViewMode>("dashboard"); 
   const [syncingAllTables, setSyncingAllTables] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const [authChecking, setAuthChecking] = useState(true);
@@ -313,9 +314,10 @@ export default function Home() {
             </p>
           </header>
 
-          {activeModule !== "archivo_delegaciones" && (
+          {(activeModule !== "archivo_delegaciones" || view === "dashboard") && (
             <ControlPanel 
               activeView={view}
+              onDashboard={() => setView("dashboard")}
               onAdd={() => setView("add")}
               onEdit={() => setView("edit")}
               onDownload={() => setView("download")}
@@ -329,7 +331,9 @@ export default function Home() {
           )}
 
           <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar mt-6">
-            {activeModule === "archivo_delegaciones" && <ArchivoDelegacionesModule />}
+            {view === "dashboard" && <DashboardOverview />}
+
+            {activeModule === "archivo_delegaciones" && view !== "dashboard" && <ArchivoDelegacionesModule />}
 
             {view === "add" && (
               activeModule === "delegaciones"
