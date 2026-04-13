@@ -17,7 +17,11 @@ type ParteRow = {
   destino_final?: string;
 };
 
-export default function EditPartes() {
+type EditPartesProps = {
+  sourceTable?: "PARTES" | "partes_viejas";
+};
+
+export default function EditPartes({ sourceTable = "PARTES" }: EditPartesProps) {
   const [busqueda, setBusqueda] = useState("");
   const [resultados, setResultados] = useState<ParteRow[]>([]);
   const [editando, setEditando] = useState<ParteRow | null>(null);
@@ -28,7 +32,7 @@ export default function EditPartes() {
     setBusqueda(valor);
     if (valor.length < 3) return setResultados([]);
     const { data } = await supabase
-      .from("PARTES")
+      .from(sourceTable)
       .select("*")
       .or(`expediente.ilike.%${valor}%,descripcion.ilike.%${valor}%`)
       .limit(10);
@@ -38,7 +42,7 @@ export default function EditPartes() {
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editando) return;
-    const { error } = await supabase.from("PARTES").update(editando).eq("id", editando.id);
+    const { error } = await supabase.from(sourceTable).update(editando).eq("id", editando.id);
     if (error) {
       setNotification({ message: "Error al actualizar", type: "error" });
     } else {
@@ -54,7 +58,7 @@ export default function EditPartes() {
 
   const confirmEliminar = async () => {
     if (!itemToDelete) return;
-    const { error } = await supabase.from("PARTES").delete().eq("id", itemToDelete);
+    const { error } = await supabase.from(sourceTable).delete().eq("id", itemToDelete);
     if (error) {
       setNotification({ message: "Error al eliminar", type: "error" });
     } else {

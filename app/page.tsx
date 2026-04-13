@@ -360,7 +360,7 @@ export default function Home() {
                 : activeModule === "partes"
                 ? <EditPartes />
                 : activeModule === "partes_viejos"
-                ? <EditModule />
+                ? <EditPartes sourceTable="partes_viejas" />
                 : activeModule === "archivo_delegaciones"
                 ? null
                 : <EditModule />
@@ -371,7 +371,7 @@ export default function Home() {
                 : activeModule === "partes"
                 ? <DownloadPartes />
                 : activeModule === "partes_viejos"
-                ? <DownloadModule />
+                ? <DownloadPartes sourceTable="partes_viejas" />
                 : activeModule === "archivo_delegaciones"
                 ? null
                 : <DownloadModule />
