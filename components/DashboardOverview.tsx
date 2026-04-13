@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
 type SourceKey = "delegaciones" | "partes" | "delegaciones_viejas" | "partes_viejos";
@@ -254,6 +254,8 @@ export default function DashboardOverview() {
   const [selectedMonthYear, setSelectedMonthYear] = useState(CURRENT_YEAR);
   const [selectedMonth, setSelectedMonth] = useState(String(new Date().getMonth() + 1).padStart(2, "0"));
   const [monthlyStatus, setMonthlyStatus] = useState<MonthlyDelegacionesStatus>(createEmptyMonthlyStatus());
+  const statusCacheRef = useRef<Record<string, SourceStatus>>({});
+  const monthlyCacheRef = useRef<Record<string, MonthlyDelegacionesStatus>>({});
 
   const fetchYearsForSource = useCallback(async (table: SourceConfig["table"] | "FLAGRANCIA", column: string): Promise<string[]> => {
     const PAGE_SIZE = 1000;
@@ -287,6 +289,10 @@ export default function DashboardOverview() {
   }, []);
 
   const fetchStatusForYear = useCallback(async (source: SourceConfig, year: string): Promise<SourceStatus> => {
+    const cacheKey = `${source.key}:${year}`;
+    const cached = statusCacheRef.current[cacheKey];
+    if (cached) return cached;
+
     const range = buildYearRange(year);
     const { data, error } = await supabase
       .from(source.table)
@@ -301,10 +307,20 @@ export default function DashboardOverview() {
     }
 
     const row = ((((data || []) as unknown[]) as Array<Record<string, unknown>>)[0]) || {};
-    return toStatus(source, year, row[source.column]);
+    const status = toStatus(source, year, row[source.column]);
+    statusCacheRef.current[cacheKey] = status;
+    return status;
   }, []);
 
   const loadMonthlyDelegaciones = useCallback(async (year: string, month: string) => {
+    const cacheKey = `${year}-${month}`;
+    const cached = monthlyCacheRef.current[cacheKey];
+    if (cached) {
+      setMonthlyStatus(cached);
+      setMonthlyLoading(false);
+      return;
+    }
+
     setMonthlyLoading(true);
     setMonthlyErrorText("");
 
@@ -359,14 +375,17 @@ export default function DashboardOverview() {
 
       const porcentajeCumplimiento = total > 0 ? Number(((cumplidas / total) * 100).toFixed(1)) : 0;
 
-      setMonthlyStatus({
+      const summary = {
         total,
         cumplidas,
         pendientes,
         porcentajeCumplimiento,
         peritoConMasPendientes,
         pendientesPeritoTop,
-      });
+      };
+
+      monthlyCacheRef.current[cacheKey] = summary;
+      setMonthlyStatus(summary);
     } catch (error) {
       const message = error instanceof Error ? error.message : "No se pudo cargar delegaciones por mes";
       setMonthlyErrorText(message);
@@ -419,14 +438,13 @@ export default function DashboardOverview() {
       setDelegacionesMonthYears(monthYears);
       const defaultMonthYear = monthYears[0] || CURRENT_YEAR;
       setSelectedMonthYear(defaultMonthYear);
-      await loadMonthlyDelegaciones(defaultMonthYear, selectedMonth);
     } catch (error) {
       const message = error instanceof Error ? error.message : "No se pudo cargar el dashboard";
       setErrorText(message);
     } finally {
       setLoading(false);
     }
-  }, [fetchStatusForYear, fetchYearsForSource, loadMonthlyDelegaciones, selectedMonth]);
+  }, [fetchStatusForYear, fetchYearsForSource]);
 
   useEffect(() => {
     void loadSummary();
@@ -434,34 +452,21 @@ export default function DashboardOverview() {
 
   useEffect(() => {
     if (loading) return;
-
-    let active = true;
-    const refreshRows = async () => {
-      try {
-        const results = await Promise.all(
-          SOURCES.map((source) => fetchStatusForYear(source, selectedYearBySource[source.key]))
-        );
-        if (active) setStatusRows(results);
-      } catch (error) {
-        if (!active) return;
-        const message = error instanceof Error ? error.message : "No se pudo actualizar el dashboard";
-        setErrorText(message);
-      }
-    };
-
-    void refreshRows();
-    return () => {
-      active = false;
-    };
-  }, [selectedYearBySource, fetchStatusForYear, loading]);
-
-  useEffect(() => {
-    if (loading) return;
     void loadMonthlyDelegaciones(selectedMonthYear, selectedMonth);
   }, [selectedMonthYear, selectedMonth, loadMonthlyDelegaciones, loading]);
 
-  const handleYearChange = (key: SourceKey, year: string) => {
+  const handleYearChange = async (key: SourceKey, year: string) => {
     setSelectedYearBySource((prev) => ({ ...prev, [key]: year }));
+
+    try {
+      const source = SOURCES.find((item) => item.key === key);
+      if (!source) return;
+      const nextStatus = await fetchStatusForYear(source, year);
+      setStatusRows((prev) => prev.map((row) => (row.key === key ? nextStatus : row)));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "No se pudo actualizar el año seleccionado";
+      setErrorText(message);
+    }
   };
 
   const globalStats = useMemo(() => {
