@@ -219,6 +219,7 @@ export default function FormDelegacionesDiarias({
   const [isSaving, setIsSaving] = useState(false);
   const [notification, setNotification] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
   const [casoPj, setCasoPj] = useState(false);
+  const [ifUnicidad, setIfUnicidad] = useState<"idle" | "unique" | "duplicate">("idle");
   const [peritoSugerencias, setPeritoSugerencias] = useState<PeritoSuggestion[]>([]);
   const [delitoSugerencias, setDelitoSugerencias] = useState<DelitoSuggestion[]>([]);
   const [fiscalSugerencias, setFiscalSugerencias] = useState<FiscalSuggestion[]>([]);
@@ -355,6 +356,44 @@ export default function FormDelegacionesDiarias({
 
     void hydrateFromRecord();
   }, [mode, initialRecord]);
+
+  useEffect(() => {
+    const ifCompletoSecuencial = formData.ifAnio && formData.ifSecuencial
+      ? `${formData.ifAnio}${formData.ifSecuencial.padStart(6, "0")}`
+      : "";
+
+    if (!ifCompletoSecuencial || ifCompletoSecuencial.length < 5) {
+      setIfUnicidad("idle");
+      return;
+    }
+
+    const delayDebounce = setTimeout(async () => {
+      try {
+        let query = supabase
+          .from("FLAGRANCIA")
+          .select("id")
+          .eq("IF", Number(ifCompletoSecuencial));
+
+        if (mode === "edit" && editId) {
+          query = query.neq("id", editId);
+        }
+
+        const { data, error } = await query.limit(1);
+
+        if (!error) {
+          if (data && data.length > 0) {
+            setIfUnicidad("duplicate");
+          } else {
+            setIfUnicidad("unique");
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }, 500);
+
+    return () => clearTimeout(delayDebounce);
+  }, [formData.ifAnio, formData.ifSecuencial, mode, editId]);
 
   const handleChange = (key: keyof FormState, value: string) => {
     if (key === "mesIngresoDisposicionesFiscales") {
@@ -812,6 +851,7 @@ export default function FormDelegacionesDiarias({
       "PLAZO_DIAS": "3 DIAS",
     };
 
+    let newId: string | number | null = null;
     let error = null as { message: string } | null;
 
     if (mode === "edit") {
@@ -991,7 +1031,11 @@ export default function FormDelegacionesDiarias({
 
         <div className="space-y-1">
           <label className="text-[10px] font-bold text-white/40 uppercase">IF</label>
-          <div className="flex items-center bg-white/5 border border-white/10 rounded-xl overflow-hidden focus-within:border-indigo-500">
+          <div className={`flex items-center bg-white/5 border rounded-xl overflow-hidden ${
+            ifUnicidad === "unique" ? "border-emerald-500 focus-within:border-emerald-500" :
+            ifUnicidad === "duplicate" ? "border-blue-500 focus-within:border-blue-500" :
+            "border-white/10 focus-within:border-indigo-500"
+          }`}>
             <span className="bg-white/10 px-2 py-2.5 text-xs text-white/50 font-mono">{IF_PREFIX}</span>
             <input
               type="text"
@@ -1013,7 +1057,11 @@ export default function FormDelegacionesDiarias({
               className="flex-1 min-w-0 bg-transparent px-2 py-2.5 text-xs text-white outline-none font-mono"
             />
           </div>
-          <p className="text-xs text-white/50 font-mono tracking-wider truncate">{ifCompleto}</p>
+          <div className="flex justify-between items-center px-1">
+            <p className="text-xs text-white/50 font-mono tracking-wider truncate">{ifCompleto}</p>
+            {ifUnicidad === "unique" && <span className="text-[9px] text-emerald-400 font-bold uppercase">IF Disponible</span>}
+            {ifUnicidad === "duplicate" && <span className="text-[9px] text-blue-400 font-bold uppercase">IF Duplicado (Revisar)</span>}
+          </div>
         </div>
 
         <div className="space-y-1">

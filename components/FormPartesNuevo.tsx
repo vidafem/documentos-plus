@@ -43,6 +43,7 @@ export default function FormPartesNuevo() {
   const [detenidos, setDetenidos] = useState("");
   const [delito, setDelito] = useState("");
   const [fojas, setFojas] = useState("");
+  const [ppUnicidad, setPpUnicidad] = useState<"idle" | "unique" | "duplicate">("idle");
   const [sugerencias, setSugerencias] = useState<{ delito: string }[]>([]);
 
   const obtenerSiguienteExpedientePorAnio = async (anioSeleccionado: string) => {
@@ -87,6 +88,38 @@ export default function FormPartesNuevo() {
       active = false;
     };
   }, [anio]);
+
+  useEffect(() => {
+    const anioRegistro = normalizeYearInput(anio);
+    const codigoPPFull = `PP-${anioRegistro}${mesProceso}${diaCierre.padStart(2, "0")}${ppUltimos10}`;
+
+    if (!ppUltimos10 || ppUltimos10.length < 4) {
+      setPpUnicidad("idle");
+      return;
+    }
+
+    const delayDebounce = setTimeout(async () => {
+      try {
+        const { data, error } = await supabase
+          .from("PARTES")
+          .select("id")
+          .like("descripcion", `${codigoPPFull}%`)
+          .limit(1);
+
+        if (!error) {
+          if (data && data.length > 0) {
+            setPpUnicidad("duplicate");
+          } else {
+            setPpUnicidad("unique");
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }, 500);
+
+    return () => clearTimeout(delayDebounce);
+  }, [anio, mesProceso, diaCierre, ppUltimos10]);
 
   // 2. BUSCADOR DE DELITOS
   const buscarDelitos = async (texto: string) => {
@@ -237,12 +270,18 @@ export default function FormPartesNuevo() {
           {/* FILA 2: CÓDIGO PP (ACTUALIZADO A 12 DÍGITOS) */}
           <div className="space-y-0.5">
             <label className="text-[8px] font-bold text-white/30 uppercase">Código PP (12 dígitos finales)</label>
-            <div className="flex items-center bg-white/5 border border-white/10 rounded-xl overflow-hidden focus-within:border-indigo-500 h-9">
+            <div className={`flex items-center bg-white/5 border rounded-xl overflow-hidden h-9 ${
+              ppUnicidad === "unique" ? "border-emerald-500 focus-within:border-emerald-500" :
+              ppUnicidad === "duplicate" ? "border-blue-500 focus-within:border-blue-500" :
+              "border-white/10 focus-within:border-indigo-500"
+            }`}>
               <span className="bg-white/10 px-3 h-full flex items-center text-[10px] font-mono text-white/40">
                 PP-{anio}{mesProceso}{diaCierre.padStart(2, "0")}
               </span>
-              <input required type="text" maxLength={12} value={ppUltimos10} onChange={(e) => setPpUltimos10(e.target.value)} className="flex-1 bg-transparent px-3 text-sm text-white outline-none font-bold" placeholder="000000000000" />
+              <input required type="text" maxLength={12} value={ppUltimos10} onChange={e => setPpUltimos10(e.target.value)} className="flex-1 bg-transparent px-3 text-sm text-white outline-none font-bold" placeholder="000000000000" />
             </div>
+            {ppUnicidad === "unique" && <p className="text-[9px] text-emerald-400 font-bold uppercase mt-0.5 px-1">Código PP Disponible</p>}
+            {ppUnicidad === "duplicate" && <p className="text-[9px] text-blue-400 font-bold uppercase mt-0.5 px-1">Código PP Duplicado (Revisar)</p>}
           </div>
 
           {/* FILA 3: DETENIDOS */}

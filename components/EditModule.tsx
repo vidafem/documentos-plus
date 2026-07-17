@@ -179,6 +179,7 @@ export default function EditModule() {
   const [notification, setNotification] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
   const [itemToDelete, setItemToDelete] = useState<string | number | null>(null);
   const [pdfTemplate, setPdfTemplate] = useState("");
+  const [expUnicidad, setExpUnicidad] = useState<"idle" | "unique" | "duplicate">("idle");
 
   useEffect(() => {
     let active = true;
@@ -202,6 +203,44 @@ export default function EditModule() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!editando) {
+      setExpUnicidad("idle");
+      return;
+    }
+
+    const expedientePrefijo = `IF-0901018${(editForm.anioApertura || editForm.anioBase || "").slice(-2).padStart(2, "0")}`;
+    const fullExpediente = `${expedientePrefijo}${editForm.expedienteSufijo}`;
+
+    if (!editForm.expedienteSufijo || editForm.expedienteSufijo.length < 2) {
+      setExpUnicidad("idle");
+      return;
+    }
+
+    const delayDebounce = setTimeout(async () => {
+      try {
+        const { data, error } = await supabase
+          .from("delegaciones_viejas")
+          .select("id")
+          .eq("expediente", fullExpediente)
+          .neq("id", editando.id)
+          .limit(1);
+
+        if (!error) {
+          if (data && data.length > 0) {
+            setExpUnicidad("duplicate");
+          } else {
+            setExpUnicidad("unique");
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }, 500);
+
+    return () => clearTimeout(delayDebounce);
+  }, [editando, editForm.anioApertura, editForm.anioBase, editForm.expedienteSufijo]);
 
   const handleSearch = async (valor: string) => {
     setBusqueda(valor);
@@ -492,10 +531,16 @@ ${templateFilled}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-white/30 uppercase">N° de Expediente</label>
-              <div className="flex items-center bg-white/5 border border-white/10 rounded-xl overflow-hidden focus-within:border-indigo-500 transition-all">
+              <div className={`flex items-center bg-white/5 border rounded-xl overflow-hidden transition-all ${
+                expUnicidad === "unique" ? "border-emerald-500 focus-within:border-emerald-500" :
+                expUnicidad === "duplicate" ? "border-blue-500 focus-within:border-blue-500" :
+                "border-white/10 focus-within:border-indigo-500"
+              }`}>
                 <span className="bg-white/10 px-2 py-2 text-[10px] text-white/40 font-mono">{expedientePrefijo}</span>
                 <input required type="text" value={editForm.expedienteSufijo} onChange={(e) => updateEditForm({ expedienteSufijo: e.target.value })} className="flex-1 bg-transparent p-2 text-xs text-white outline-none" />
               </div>
+              {expUnicidad === "unique" && <p className="text-[9px] text-emerald-400 font-bold uppercase mt-0.5 px-1">Expediente Disponible</p>}
+              {expUnicidad === "duplicate" && <p className="text-[9px] text-blue-400 font-bold uppercase mt-0.5 px-1">Expediente Duplicado (Revisar)</p>}
             </div>
 
             <div className="space-y-1 relative">

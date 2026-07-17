@@ -433,7 +433,7 @@ export const syncDelegacionesFromFlagranciaGlobal = async (selectedYearNum: numb
     const existing = orden ? existingDelegacionesByOrden.get(orden) : undefined;
 
     DELEGACIONES_INSERT_COLUMNS.forEach((column) => {
-      let mappedKey = column;
+      let mappedKey: string = column;
       if (column === "APELLIDOS_Y_NOMBRES_DE_LOS_DETENIDOS_PRODUCTO_DEL_CUMPLIMIENTO_") {
         mappedKey = "APELLIDOS_Y_NOMBRES_DE_LOS_DETENIDOS_PRODUCTO_DEL_CUMPLIMIENTO_DE_LA_DISPOSICION_FISCAL";
       } else if (column === "APELLIDOS_Y_NOMBRES_DE_LAS_PERSONAS_SOSPECHOSAS_QUE_SE_HA_EMITI") {
@@ -584,7 +584,7 @@ export default function DelegacionesFlagranciaModule() {
     const safeRows = ((data || []) as GenericRow[]).map((row) => {
       const normalized: Record<string, string> = {};
       DELEGACIONES_HEADERS.forEach((header) => {
-        let dbKey = header;
+        let dbKey: string = header;
         if (header === "APELLIDOS_Y_NOMBRES_DE_LAS_PERSONAS_SOSPECHOSAS_QUE_SE_HA_EMITIDO_BOLETA_DE_CAPTURA") {
           dbKey = "APELLIDOS_Y_NOMBRES_DE_LAS_PERSONAS_SOSPECHOSAS_QUE_SE_HA_EMITI";
         } else if (header === "APELLIDOS_Y_NOMBRES_DE_LOS_DETENIDOS_PRODUCTO_DEL_CUMPLIMIENTO_DE_LA_DISPOSICION_FISCAL") {
@@ -802,7 +802,7 @@ export default function DelegacionesFlagranciaModule() {
 
     setSavingField(true);
 
-    let columnToUpdate = effectiveSelectedEmptyField;
+    let columnToUpdate: string = effectiveSelectedEmptyField;
     if (columnToUpdate === "APELLIDOS_Y_NOMBRES_DE_LAS_PERSONAS_SOSPECHOSAS_QUE_SE_HA_EMITIDO_BOLETA_DE_CAPTURA") {
       columnToUpdate = "APELLIDOS_Y_NOMBRES_DE_LAS_PERSONAS_SOSPECHOSAS_QUE_SE_HA_EMITI";
     } else if (columnToUpdate === "APELLIDOS_Y_NOMBRES_DE_LOS_DETENIDOS_PRODUCTO_DEL_CUMPLIMIENTO_DE_LA_DISPOSICION_FISCAL") {
