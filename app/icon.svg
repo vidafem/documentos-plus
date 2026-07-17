@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Fondo circular azul PJ -->
+  <circle cx="32" cy="32" r="32" fill="#01376D"/>
+  <!-- Escudo/carpeta exterior -->
+  <rect x="14" y="12" width="36" height="44" rx="5" fill="#0A5BAE"/>
+  <!-- Borde del documento -->
+  <rect x="16" y="14" width="32" height="40" rx="4" fill="white"/>
+  <!-- Doblez esquina recto -->
+  <polygon points="38,14 48,14 48,24 38,24" fill="#E8EFF7"/>
+  <polygon points="38,14 48,24 38,24" fill="#B0C4DE"/>
+  <!-- Líneas de texto -->
+  <rect x="20" y="29" width="20" height="3" rx="1.5" fill="#01376D"/>
+  <rect x="20" y="35" width="16" height="3" rx="1.5" fill="#01376D"/>
+  <rect x="20" y="41" width="12" height="3" rx="1.5" fill="#01376D"/>
+  <!-- Letras DP centradas arriba -->
+  <text x="32" y="25" font-family="Arial, sans-serif" font-size="9" font-weight="bold" fill="#01376D" text-anchor="middle" letter-spacing="1">DP</text>
+</svg>
