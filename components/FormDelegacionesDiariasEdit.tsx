@@ -358,8 +358,8 @@ export default function FormDelegacionesDiarias({
   }, [mode, initialRecord]);
 
   useEffect(() => {
-    const ifCompletoSecuencial = formData.ifAnio && formData.ifSecuencial
-      ? `${formData.ifAnio}${formData.ifSecuencial.padStart(6, "0")}`
+    const ifCompletoSecuencial = formData.ifAnio.trim().length === 4 && formData.ifSecuencial.trim().length > 0
+      ? `${IF_PREFIX}${formData.ifAnio.slice(-2)}${formData.ifSecuencial}`
       : "";
 
     if (!ifCompletoSecuencial || ifCompletoSecuencial.length < 5) {
@@ -897,11 +897,14 @@ export default function FormDelegacionesDiarias({
         const numDetenidos = contarDetenidos(formData.detenido);
         const { error: deleError } = await supabase
           .from("DELEGACIONES")
-          .upsert({
-            ORDEN: String(currentId),
-            NUMERO_DE_DETENIDOS_PRODUCTO_DE_LA_INVESTIGACION: String(numDetenidos),
-            APELLIDOS_Y_NOMBRES_DE_LOS_DETENIDOS_PRODUCTO_DEL_CUMPLIMIENTO_: formData.detenido.trim(),
-          });
+          .upsert(
+            {
+              ORDEN: String(currentId),
+              NUMERO_DE_DETENIDOS_PRODUCTO_DE_LA_INVESTIGACION: String(numDetenidos),
+              APELLIDOS_Y_NOMBRES_DE_LOS_DETENIDOS_PRODUCTO_DEL_CUMPLIMIENTO_: formData.detenido.trim(),
+            },
+            { onConflict: "ORDEN" }
+          );
         if (deleError) {
           deleErrorMessage = `Error al guardar Caso PJ en DELEGACIONES: ${deleError.message}`;
         } else {
@@ -936,10 +939,13 @@ export default function FormDelegacionesDiarias({
 
     if (deleErrorMessage) {
       setNotification({
-        message: `${mode === "edit" ? "Actualizado" : "Guardado"} en FLAGRANCIA. ${deleErrorMessage}`,
+        message: `Actualizado en FLAGRANCIA pero: ${deleErrorMessage}`,
         type: "error",
       });
-    } else if (deleSuccessMessage) {
+      return; // Bloqueamos el cierre del formulario para que el usuario vea el error!
+    }
+
+    if (deleSuccessMessage) {
       setNotification({
         message: `${mode === "edit" ? "Actualizado" : "Guardado"} en FLAGRANCIA. ${deleSuccessMessage}`,
         type: "success",

@@ -145,6 +145,12 @@ const RED_IF_FILLED_COLUMNS = new Set([
   "AÑO_DE_RECEPCION_POR_",
   "AÑO_DE_CUMPLIMIENTO",
 ]);
+const contarDetenidos = (detenidoStr: string): number => {
+  const limpio = detenidoStr.trim();
+  if (!limpio || limpio === "—" || limpio === "NO APLICA" || limpio === "N/A") return 0;
+  const personas = limpio.split(",").map((p) => p.trim()).filter((p) => p.length > 0);
+  return personas.length;
+};
 
 const normalizeDateValue = (value: string): string => {
   const raw = String(value || "").trim();
@@ -441,7 +447,23 @@ export const syncDelegacionesFromFlagranciaGlobal = async (selectedYearNum: numb
       }
 
       const mappedValue = mapped[mappedKey] || "";
-      const existingValue = existing ? toText(existing[column]) : "";
+      let existingValue = existing ? toText(existing[column]) : "";
+
+      // Si es una columna de Caso PJ, y ya existía información en la BD (es decir, el switch estaba activo),
+      // actualizamos la información con el valor más reciente de FLAGRANCIA.
+      if (existing && (column === "NUMERO_DE_DETENIDOS_PRODUCTO_DE_LA_INVESTIGACION" || column === "APELLIDOS_Y_NOMBRES_DE_LOS_DETENIDOS_PRODUCTO_DEL_CUMPLIMIENTO_")) {
+        const hasExistingData = toText(existing["NUMERO_DE_DETENIDOS_PRODUCTO_DE_LA_INVESTIGACION"]).trim().length > 0 || 
+                               toText(existing["APELLIDOS_Y_NOMBRES_DE_LOS_DETENIDOS_PRODUCTO_DEL_CUMPLIMIENTO_"]).trim().length > 0;
+        
+        if (hasExistingData) {
+          if (column === "NUMERO_DE_DETENIDOS_PRODUCTO_DE_LA_INVESTIGACION") {
+            const currentDetenidos = toText(row.DETENIDO);
+            existingValue = String(contarDetenidos(currentDetenidos));
+          } else {
+            existingValue = toText(row.DETENIDO).trim();
+          }
+        }
+      }
 
       // Regla conservadora: priorizar siempre el dato ya existente para no sobrescribir carga manual.
       insertRow[column] = existingValue.trim().length > 0 ? existingValue : mappedValue;

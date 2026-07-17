@@ -259,8 +259,8 @@ export default function FormDelegacionesDiarias() {
   };
 
   useEffect(() => {
-    const ifCompletoSecuencial = formData.ifAnio && formData.ifSecuencial
-      ? `${formData.ifAnio}${formData.ifSecuencial.padStart(6, "0")}`
+    const ifCompletoSecuencial = formData.ifAnio.trim().length === 4 && formData.ifSecuencial.trim().length > 0
+      ? `${IF_PREFIX}${formData.ifAnio.slice(-2)}${formData.ifSecuencial}`
       : "";
 
     if (!ifCompletoSecuencial || ifCompletoSecuencial.length < 5) {
@@ -741,17 +741,22 @@ export default function FormDelegacionesDiarias() {
       }
     }
 
-    if (!error && casoPj && newId) {
-      const numDetenidos = contarDetenidos(formData.detenido);
-      const { error: deleError } = await supabase
-        .from("DELEGACIONES")
-        .upsert({
-          ORDEN: String(newId),
-          NUMERO_DE_DETENIDOS_PRODUCTO_DE_LA_INVESTIGACION: String(numDetenidos),
-          APELLIDOS_Y_NOMBRES_DE_LOS_DETENIDOS_PRODUCTO_DEL_CUMPLIMIENTO_: formData.detenido.trim(),
-        });
-      if (deleError) {
-        console.error("Error al guardar caso PJ en DELEGACIONES:", deleError);
+    if (!error && newId) {
+      if (casoPj) {
+        const numDetenidos = contarDetenidos(formData.detenido);
+        const { error: deleError } = await supabase
+          .from("DELEGACIONES")
+          .upsert(
+            {
+              ORDEN: String(newId),
+              NUMERO_DE_DETENIDOS_PRODUCTO_DE_LA_INVESTIGACION: String(numDetenidos),
+              APELLIDOS_Y_NOMBRES_DE_LOS_DETENIDOS_PRODUCTO_DEL_CUMPLIMIENTO_: formData.detenido.trim(),
+            },
+            { onConflict: "ORDEN" }
+          );
+        if (deleError) {
+          console.error("Error al copiar Caso PJ a DELEGACIONES:", deleError);
+        }
       }
     }
 

@@ -103,7 +103,7 @@ export default function FormPartesNuevo() {
         const { data, error } = await supabase
           .from("PARTES")
           .select("id")
-          .like("descripcion", `${codigoPPFull}%`)
+          .like("descripcion", `%${ppUltimos10}%`)
           .limit(1);
 
         if (!error) {
