@@ -449,19 +449,18 @@ export const syncDelegacionesFromFlagranciaGlobal = async (selectedYearNum: numb
       const mappedValue = mapped[mappedKey] || "";
       let existingValue = existing ? toText(existing[column]) : "";
 
-      // Si es una columna de Caso PJ, y ya existía información en la BD (es decir, el switch estaba activo),
-      // actualizamos la información con el valor más reciente de FLAGRANCIA.
-      if (existing && (column === "NUMERO_DE_DETENIDOS_PRODUCTO_DE_LA_INVESTIGACION" || column === "APELLIDOS_Y_NOMBRES_DE_LOS_DETENIDOS_PRODUCTO_DEL_CUMPLIMIENTO_")) {
-        const hasExistingData = toText(existing["NUMERO_DE_DETENIDOS_PRODUCTO_DE_LA_INVESTIGACION"]).trim().length > 0 || 
-                               toText(existing["APELLIDOS_Y_NOMBRES_DE_LOS_DETENIDOS_PRODUCTO_DEL_CUMPLIMIENTO_"]).trim().length > 0;
-        
-        if (hasExistingData) {
+      // Si es una columna de Caso PJ, verificamos si el switch está marcado en FLAGRANCIA como "DETENIDO (CASO PJ)"
+      if (column === "NUMERO_DE_DETENIDOS_PRODUCTO_DE_LA_INVESTIGACION" || column === "APELLIDOS_Y_NOMBRES_DE_LOS_DETENIDOS_PRODUCTO_DEL_CUMPLIMIENTO_") {
+        const isCasoPj = toText(row.CONDICIÓN_DEL_INFRACTOR_INVOLUCRADO) === "DETENIDO (CASO PJ)";
+        if (isCasoPj) {
           if (column === "NUMERO_DE_DETENIDOS_PRODUCTO_DE_LA_INVESTIGACION") {
-            const currentDetenidos = toText(row.DETENIDO);
-            existingValue = String(contarDetenidos(currentDetenidos));
+            existingValue = String(contarDetenidos(toText(row.DETENIDO)));
           } else {
             existingValue = toText(row.DETENIDO).trim();
           }
+        } else {
+          // Si el switch no está activo, forzamos a vacío para que no queden datos viejos huérfanos
+          existingValue = "";
         }
       }
 

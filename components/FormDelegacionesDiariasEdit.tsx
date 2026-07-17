@@ -300,7 +300,10 @@ export default function FormDelegacionesDiarias({
       const mapped = mapRecordToFormState(initialRecord);
       setFormData(mapped);
 
-      if (editId) {
+      const condVal = String(initialRecord["CONDICIÓN_DEL_INFRACTOR_INVOLUCRADO"] || "");
+      if (condVal === "DETENIDO (CASO PJ)") {
+        setCasoPj(true);
+      } else if (editId) {
         const { data: deleRow } = await supabase
           .from("DELEGACIONES")
           .select("NUMERO_DE_DETENIDOS_PRODUCTO_DE_LA_INVESTIGACION, APELLIDOS_Y_NOMBRES_DE_LOS_DETENIDOS_PRODUCTO_DEL_CUMPLIMIENTO_")
@@ -313,6 +316,8 @@ export default function FormDelegacionesDiarias({
         } else {
           setCasoPj(false);
         }
+      } else {
+        setCasoPj(false);
       }
 
       const nombreFiscal = mapped.apellidosNombresFiscal.trim().toUpperCase();
@@ -840,7 +845,7 @@ export default function FormDelegacionesDiarias({
       "DELITO_DESAGREGACION_POLICIA_JUDICIAL": formData.delitoDesagregacionPoliciaJudicial,
       "FECHA_DE_LA_INFRACIÓN_DELITO": fechaInfraccionCompleta,
       "DETENIDO": formData.detenido.trim(),
-      "CONDICIÓN_DEL_INFRACTOR_INVOLUCRADO": "DETENIDO",
+      "CONDICIÓN_DEL_INFRACTOR_INVOLUCRADO": casoPj ? "DETENIDO (CASO PJ)" : "DETENIDO",
       "APELLIDOS_Y_NOMBRES_DEL_FISCAL": formData.apellidosNombresFiscal.trim().toUpperCase(),
       "UNIDAD_ESPECIALIZADA_DE_FISCALIA": unidadFiscaliaFormateada,
       "F_DELEGACION": fDelegacionCompleta || null,
