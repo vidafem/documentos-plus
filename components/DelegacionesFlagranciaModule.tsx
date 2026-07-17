@@ -449,9 +449,9 @@ export const syncDelegacionesFromFlagranciaGlobal = async (selectedYearNum: numb
       const mappedValue = mapped[mappedKey] || "";
       let existingValue = existing ? toText(existing[column]) : "";
 
-      // Si es una columna de Caso PJ, verificamos si el switch está marcado en FLAGRANCIA como "DETENIDO (CASO PJ)"
+      // Si es una columna de Caso PJ, verificamos si el switch está marcado en FLAGRANCIA como caso_pj
       if (column === "NUMERO_DE_DETENIDOS_PRODUCTO_DE_LA_INVESTIGACION" || column === "APELLIDOS_Y_NOMBRES_DE_LOS_DETENIDOS_PRODUCTO_DEL_CUMPLIMIENTO_") {
-        const isCasoPj = toText(row.CONDICIÓN_DEL_INFRACTOR_INVOLUCRADO) === "DETENIDO (CASO PJ)";
+        const isCasoPj = !!row.caso_pj;
         if (isCasoPj) {
           if (column === "NUMERO_DE_DETENIDOS_PRODUCTO_DE_LA_INVESTIGACION") {
             existingValue = String(contarDetenidos(toText(row.DETENIDO)));
