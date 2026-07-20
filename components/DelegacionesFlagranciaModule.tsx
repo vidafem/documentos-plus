@@ -693,7 +693,30 @@ export default function DelegacionesFlagranciaModule() {
       const mapped = mapFlagranciaToDelegaciones(row, index, articulosByDelito, fiscalCodByKey);
       const insertRow: Record<string, string> = {};
       DELEGACIONES_INSERT_COLUMNS.forEach((column) => {
-        insertRow[column] = mapped[column] || "";
+        let mappedKey: string = column;
+        if (column === "APELLIDOS_Y_NOMBRES_DE_LOS_DETENIDOS_PRODUCTO_DEL_CUMPLIMIENTO_") {
+          mappedKey = "APELLIDOS_Y_NOMBRES_DE_LOS_DETENIDOS_PRODUCTO_DEL_CUMPLIMIENTO_DE_LA_DISPOSICION_FISCAL";
+        } else if (column === "APELLIDOS_Y_NOMBRES_DE_LAS_PERSONAS_SOSPECHOSAS_QUE_SE_HA_EMITI") {
+          mappedKey = "APELLIDOS_Y_NOMBRES_DE_LAS_PERSONAS_SOSPECHOSAS_QUE_SE_HA_EMITIDO_BOLETA_DE_CAPTURA";
+        }
+
+        let val = mapped[mappedKey] || "";
+
+        // Si es columna de Caso PJ, calculamos/copiamos basándonos en el campo caso_pj de FLAGRANCIA
+        if (column === "NUMERO_DE_DETENIDOS_PRODUCTO_DE_LA_INVESTIGACION" || column === "APELLIDOS_Y_NOMBRES_DE_LOS_DETENIDOS_PRODUCTO_DEL_CUMPLIMIENTO_") {
+          const isCasoPj = !!row.caso_pj;
+          if (isCasoPj) {
+            if (column === "NUMERO_DE_DETENIDOS_PRODUCTO_DE_LA_INVESTIGACION") {
+              val = String(contarDetenidos(toText(row.DETENIDO)));
+            } else {
+              val = toText(row.DETENIDO).trim();
+            }
+          } else {
+            val = "";
+          }
+        }
+
+        insertRow[column] = val;
       });
       return insertRow;
     });
