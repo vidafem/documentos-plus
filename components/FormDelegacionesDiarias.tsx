@@ -264,8 +264,8 @@ export default function FormDelegacionesDiarias() {
       : "";
 
     if (!ifCompletoSecuencial || ifCompletoSecuencial.length < 5) {
-      setIfUnicidad("idle");
-      return;
+      const timer = setTimeout(() => setIfUnicidad("idle"), 0);
+      return () => clearTimeout(timer);
     }
 
     const delayDebounce = setTimeout(async () => {

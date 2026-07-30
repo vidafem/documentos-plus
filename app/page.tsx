@@ -109,7 +109,7 @@ export default function Home() {
       isMounted = false;
       authListener.subscription.unsubscribe();
     };
-  }, []);
+  }, [allowedEmail]);
 
   const handleAuthSubmit = async (event: React.FormEvent) => {
     event.preventDefault();

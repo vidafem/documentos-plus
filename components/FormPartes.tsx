@@ -90,12 +90,9 @@ export default function FormPartes() {
   }, [anio]);
 
   useEffect(() => {
-    const anioRegistro = normalizeYearInput(anio);
-    const codigoPPFull = `PP-${anioRegistro}${mesProceso}${diaCierre.padStart(2, "0")}${ppUltimos10}`;
-
     if (!ppUltimos10 || ppUltimos10.length < 4) {
-      setPpUnicidad("idle");
-      return;
+      const timer = setTimeout(() => setPpUnicidad("idle"), 0);
+      return () => clearTimeout(timer);
     }
 
     const delayDebounce = setTimeout(async () => {

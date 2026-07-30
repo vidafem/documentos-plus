@@ -359,7 +359,7 @@ export default function FormDelegacionesDiarias({
     };
 
     void hydrateFromRecord();
-  }, [mode, initialRecord]);
+  }, [mode, initialRecord, editId]);
 
   useEffect(() => {
     const ifCompletoSecuencial = formData.ifAnio.trim().length === 4 && formData.ifSecuencial.trim().length > 0
@@ -367,8 +367,8 @@ export default function FormDelegacionesDiarias({
       : "";
 
     if (!ifCompletoSecuencial || ifCompletoSecuencial.length < 5) {
-      setIfUnicidad("idle");
-      return;
+      const timer = setTimeout(() => setIfUnicidad("idle"), 0);
+      return () => clearTimeout(timer);
     }
 
     const delayDebounce = setTimeout(async () => {

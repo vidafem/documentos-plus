@@ -642,7 +642,6 @@ export default function ArchivoDelegacionesModule() {
   const [finMonth, setFinMonth] = useState("");
   const [finDay, setFinDay] = useState("");
   const [pdfTemplate, setPdfTemplate] = useState("");
-  const [pdfRowBusyKey, setPdfRowBusyKey] = useState("");
   const [pdfAllLoading, setPdfAllLoading] = useState(false);
 
   const fechaInicioTotal = useMemo(() => buildIsoDate(inicioYear, inicioMonth, inicioDay), [inicioYear, inicioMonth, inicioDay]);
