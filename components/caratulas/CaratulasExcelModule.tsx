@@ -331,25 +331,61 @@ export default function CaratulasExcelModule() {
   const [notification, setNotification] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
   const [searchExpediente, setSearchExpediente] = useState("");
 
-  // Load PDF template
+  const [availableTemplates, setAvailableTemplates] = useState<{ filename: string; displayName: string }[]>([]);
+  const [selectedTemplateFilename, setSelectedTemplateFilename] = useState("formato_delegaciones.html");
+
+  // Fetch available templates list on mount
+  useEffect(() => {
+    let active = true;
+    const fetchTemplatesList = async () => {
+      try {
+        console.log("[CARATULAS] Buscando plantillas disponibles...");
+        const res = await fetch("/api/formatos");
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+        console.log("[CARATULAS] Plantillas encontradas:", data.templates);
+        if (active && data.templates) {
+          setAvailableTemplates(data.templates);
+          const hasDefault = data.templates.some(
+            (t: { filename: string; displayName: string }) => t.filename === "formato_delegaciones.html"
+          );
+          if (!hasDefault && data.templates.length > 0) {
+            console.log("[CARATULAS] Plantilla default no encontrada, usando:", data.templates[0].filename);
+            setSelectedTemplateFilename(data.templates[0].filename);
+          }
+        }
+      } catch (err) {
+        console.error("Error al obtener la lista de formatos:", err);
+      }
+    };
+    void fetchTemplatesList();
+    return () => { active = false; };
+  }, []);
+
+  // Load PDF template HTML dynamically when selected filename changes
   useEffect(() => {
     let active = true;
     const loadTemplate = async () => {
       try {
-        const response = await fetch("/formatos/formato_delegaciones.html", { cache: "no-store" });
+        console.log("[CARATULAS] Intentando cargar archivo de plantilla:", selectedTemplateFilename);
+        const response = await fetch(`/formatos/${selectedTemplateFilename}`, { cache: "no-store" });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const html = await response.text();
-        if (active) setPdfTemplate(normalizePdfTemplateHtml(html));
+        console.log(`[CARATULAS] Plantilla "${selectedTemplateFilename}" cargada. Largo original:`, html.length);
+        const normalized = normalizePdfTemplateHtml(html);
+        console.log(`[CARATULAS] Plantilla normalizada. Largo:`, normalized.length);
+        if (active) setPdfTemplate(normalized);
       } catch (error) {
+        console.error("[CARATULAS] Error al cargar la plantilla:", error);
         if (active) {
           const msg = error instanceof Error ? error.message : "Error desconocido";
-          setNotification({ message: `No se pudo cargar formato_delegaciones.html: ${msg}`, type: "error" });
+          setNotification({ message: `No se pudo cargar la plantilla ${selectedTemplateFilename}: ${msg}`, type: "error" });
         }
       }
     };
     void loadTemplate();
     return () => { active = false; };
-  }, []);
+  }, [selectedTemplateFilename]);
 
   /* ─── Excel File Upload & Parsing ─── */
   const handleFileUpload = (file: File) => {
@@ -711,9 +747,22 @@ export default function CaratulasExcelModule() {
   <meta charset="UTF-8" />
   <title>Carátula delegación</title>
   <style>
-    @page { size: A4 landscape; margin: 6mm; }
+    @page { size: A4 landscape; margin: 0; }
     * { box-sizing: border-box; }
-    body { margin: 0; background: #fff; }
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #fff;
+    }
+    .folder-cover {
+      margin: 0 !important;
+      width: 95% !important;
+      max-width: 1050px !important;
+    }
   </style>
 </head>
 <body>
@@ -813,6 +862,22 @@ export default function CaratulasExcelModule() {
             <span>🗑️</span>
             <span>Limpiar</span>
           </button>
+          {availableTemplates.length > 1 && (
+            <div className="flex items-center gap-2 bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1 text-xs">
+              <span className="text-slate-400 font-bold uppercase text-[9px] tracking-wider">Diseño:</span>
+              <select
+                value={selectedTemplateFilename}
+                onChange={(e) => setSelectedTemplateFilename(e.target.value)}
+                className="bg-transparent text-cyan-300 font-semibold focus:outline-none border-none cursor-pointer"
+              >
+                {availableTemplates.map((t) => (
+                  <option key={t.filename} value={t.filename} className="bg-slate-900 text-white">
+                    {t.displayName}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
         {fileName && (
           <div className="flex items-center gap-2 px-3 py-1 bg-emerald-500/10 border border-emerald-400/30 rounded-xl text-xs text-emerald-200 font-semibold">
