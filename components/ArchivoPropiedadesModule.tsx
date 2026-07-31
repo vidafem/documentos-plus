@@ -292,7 +292,7 @@ export default function ArchivoPropiedadesModule() {
 
   /* ─────────────────── TEMPLATE HANDLERS ─────────────────── */
   const [availableTemplates, setAvailableTemplates] = useState<{ filename: string; displayName: string }[]>([]);
-  const [selectedTemplateFilename, setSelectedTemplateFilename] = useState("formato_delegaciones.html");
+  const [selectedTemplateFilename, setSelectedTemplateFilename] = useState("formato_delegaciones_prop.html");
   const [pdfTemplate, setPdfTemplate] = useState("");
 
   useEffect(() => {
@@ -305,7 +305,7 @@ export default function ArchivoPropiedadesModule() {
         if (active && data.templates) {
           setAvailableTemplates(data.templates);
           const hasDefault = data.templates.some(
-            (t: { filename: string; displayName: string }) => t.filename === "formato_delegaciones.html"
+            (t: { filename: string; displayName: string }) => t.filename === "formato_delegaciones_prop.html"
           );
           if (!hasDefault && data.templates.length > 0) {
             setSelectedTemplateFilename(data.templates[0].filename);
