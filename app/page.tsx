@@ -76,6 +76,8 @@ export default function Home() {
   useEffect(() => {
     let isMounted = true;
 
+    const hasInitializedRef = { current: false };
+
     const bootstrapSession = async () => {
       const { data, error } = await supabase.auth.getSession();
 
@@ -89,7 +91,8 @@ export default function Home() {
         const userEmail = data.session.user?.email?.toLowerCase() || "";
         const isAllowedProp = userEmail === "mmontielpj@gmail.com";
         setIsPropUser(isAllowedProp);
-        if (isAllowedProp) {
+        if (isAllowedProp && !hasInitializedRef.current) {
+          hasInitializedRef.current = true;
           setActiveModule("archivo_propiedades");
         }
       }
@@ -99,7 +102,7 @@ export default function Home() {
 
     void bootstrapSession();
 
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (!isMounted) return;
 
       const nextEmail = nextSession?.user?.email?.toLowerCase() || "";
@@ -116,10 +119,14 @@ export default function Home() {
 
       if (nextSession) {
         setIsPropUser(isAllowedProp);
-        if (isAllowedProp) {
-          setActiveModule("archivo_propiedades");
-        } else {
-          setActiveModule("dashboard");
+        // Only change activeModule when manually logging in (SIGNED_IN) or on the very first load
+        if (event === "SIGNED_IN" || !hasInitializedRef.current) {
+          hasInitializedRef.current = true;
+          if (isAllowedProp) {
+            setActiveModule("archivo_propiedades");
+          } else {
+            setActiveModule("dashboard");
+          }
         }
       } else {
         setIsPropUser(false);
