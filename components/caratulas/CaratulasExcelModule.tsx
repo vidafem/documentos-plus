@@ -331,6 +331,8 @@ export default function CaratulasExcelModule() {
   const [pdfMergedLoading, setPdfMergedLoading] = useState(false);
   const [notification, setNotification] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
   const [searchExpediente, setSearchExpediente] = useState("");
+  const [uniqueSeries, setUniqueSeries] = useState<string[]>([]);
+  const [selectedSerieFilter, setSelectedSerieFilter] = useState("TODAS");
 
   const [availableTemplates, setAvailableTemplates] = useState<{ filename: string; displayName: string }[]>([]);
   const [selectedTemplateFilename, setSelectedTemplateFilename] = useState("formato_delegaciones.html");
@@ -477,6 +479,7 @@ export default function CaratulasExcelModule() {
         // Parse data rows into GenericRow objects with normalized keys
         const parsedRows: GenericRow[] = [];
         const detectedYears = new Set<string>();
+        const detectedSeries = new Set<string>();
 
         let skippedEmpty = 0;
         let skippedNoData = 0;
@@ -520,6 +523,10 @@ export default function CaratulasExcelModule() {
           const cierreIso = toText(row["CIERRE"]);
           if (cierreIso.length >= 4) detectedYears.add(cierreIso.slice(0, 4));
 
+          // Collect unique series
+          const serieVal = toText(readFirstValue(row, ARCHIVO_HEADERS[0].keys));
+          if (serieVal) detectedSeries.add(serieVal);
+
           parsedRows.push(row);
         }
 
@@ -528,6 +535,7 @@ export default function CaratulasExcelModule() {
         console.log(`[CARATULAS] Filas vacías ignoradas: ${skippedEmpty}`);
         console.log(`[CARATULAS] Filas sin expediente/descripción: ${skippedNoData}`);
         console.log(`[CARATULAS] Años detectados: [${Array.from(detectedYears).join(", ")}]`);
+        console.log(`[CARATULAS] Series detectadas: [${Array.from(detectedSeries).join(", ")}]`);
 
         if (parsedRows.length === 0) {
           setNotification({ message: "No se encontraron filas de datos válidas en el archivo.", type: "error" });
@@ -563,6 +571,8 @@ export default function CaratulasExcelModule() {
           console.warn("[CARATULAS] ⚠️ No se detectaron fechas válidas en los datos");
         }
 
+        const sortedSeries = Array.from(detectedSeries).sort();
+        setUniqueSeries(sortedSeries);
         setAllRows(sorted);
         setFilteredRows(sorted);
         setFiltroAplicado(true);
@@ -613,8 +623,12 @@ export default function CaratulasExcelModule() {
 
     const res = allRows.filter((row) => {
       const cierreVal = toText(row["CIERRE"]);
-      if (!cierreVal) return true;
-      return cierreVal >= fechaInicioIso && cierreVal <= fechaFinIso;
+      const dateMatch = !cierreVal || (cierreVal >= fechaInicioIso && cierreVal <= fechaFinIso);
+
+      const serieVal = toText(readFirstValue(row, ARCHIVO_HEADERS[0].keys));
+      const serieMatch = selectedSerieFilter === "TODAS" || serieVal === selectedSerieFilter;
+
+      return dateMatch && serieMatch;
     });
 
     setFilteredRows(res);
@@ -623,7 +637,7 @@ export default function CaratulasExcelModule() {
       message: `Filtro aplicado: ${res.length} de ${allRows.length} registros.`,
       type: "success"
     });
-  }, [allRows, fechaInicioIso, fechaFinIso]);
+  }, [allRows, fechaInicioIso, fechaFinIso, selectedSerieFilter]);
 
   /* ─── Clear cache ─── */
   const limpiarCache = () => {
@@ -639,6 +653,8 @@ export default function CaratulasExcelModule() {
     setFinMonth("12");
     setFinDay("31");
     setYearOptions(DEFAULT_YEARS);
+    setSelectedSerieFilter("TODAS");
+    setUniqueSeries([]);
     if (fileInputRef.current) fileInputRef.current.value = "";
     setNotification({ message: "Cache limpiada. Puedes cargar un nuevo archivo.", type: "info" });
   };
@@ -970,7 +986,7 @@ export default function CaratulasExcelModule() {
       {/* Filters */}
       <section className="flex-none bg-slate-950/70 backdrop-blur-2xl border border-cyan-500/20 rounded-2xl p-4 shadow-xl flex flex-col gap-3">
         <h2 className="text-sm font-bold tracking-wide text-cyan-200 uppercase">ARCHIVO TOTAL</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="flex flex-col gap-1">
             <label className="text-[10px] font-bold text-slate-300 tracking-wider uppercase">FECHA INICIO</label>
             <div className="grid grid-cols-3 gap-2">
@@ -998,6 +1014,21 @@ export default function CaratulasExcelModule() {
                 {DAY_OPTIONS.map((d) => <option key={d} value={d}>{d}</option>)}
               </select>
             </div>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-bold text-slate-300 tracking-wider uppercase">SERIE DOCUMENTAL</label>
+            <select
+              value={selectedSerieFilter}
+              onChange={(e) => setSelectedSerieFilter(e.target.value)}
+              className="bg-slate-900 border border-slate-700 rounded-xl p-2 text-xs font-semibold text-white focus:border-cyan-400 outline-none w-full cursor-pointer h-[38px]"
+            >
+              <option value="TODAS">TODAS LAS SERIES</option>
+              {uniqueSeries.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3 border-t border-slate-800 pt-3">
