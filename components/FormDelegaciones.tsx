@@ -90,7 +90,7 @@ export default function FormDelegaciones() {
         .from("delitos")
         .select(col)
         .ilike(col, `%${texto}%`)
-        .limit(8);
+        .limit(100);
 
       if (error) {
         continue;
@@ -100,11 +100,20 @@ export default function FormDelegaciones() {
       const normalizadas = filas
         .map((row) => {
           const registro = (row && typeof row === "object" ? row : {}) as Record<string, unknown>;
-          return { delito: String(registro[col] || "") };
+          return String(registro[col] || "");
         })
-        .filter((row) => row.delito.trim().length > 0);
+        .filter((d) => d.trim().length > 0);
 
-      setSugerencias(normalizadas);
+      // Remove duplicates
+      const uniqueDelitos = Array.from(new Set(normalizadas));
+
+      // Sort by length (fewer characters first)
+      uniqueDelitos.sort((a, b) => a.length - b.length);
+
+      // Slice top 15 matches
+      const suggestionsList = uniqueDelitos.slice(0, 15).map((d) => ({ delito: d }));
+
+      setSugerencias(suggestionsList);
       return;
     }
 

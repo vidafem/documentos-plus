@@ -2,7 +2,7 @@
 
 import type { RefObject } from "react";
 
-type ActiveModule = "dashboard" | "delegaciones" | "delegaciones_diarias" | "partes" | "partes_viejos" | "archivo_delegaciones";
+type ActiveModule = "dashboard" | "delegaciones" | "delegaciones_diarias" | "partes" | "partes_viejos" | "archivo_delegaciones" | "archivo_propiedades";
 
 interface SidebarProps {
   sidebarRef: RefObject<HTMLElement | null>;
@@ -12,6 +12,7 @@ interface SidebarProps {
   setActiveModule: (module: ActiveModule) => void;
   onSyncAllTables: () => void;
   syncingAllTables: boolean;
+  isPropUser?: boolean;
 }
 
 export default function Sidebar({
@@ -22,6 +23,7 @@ export default function Sidebar({
   setActiveModule,
   onSyncAllTables,
   syncingAllTables,
+  isPropUser = false,
 }: SidebarProps) {
   return (
     <aside ref={sidebarRef} className={`absolute left-0 top-0 z-40 h-full transition-all duration-500 ease-[cubic-bezier(0.25,1,0.5,1)] flex flex-col ${
@@ -39,68 +41,89 @@ export default function Sidebar({
         </div>
         
         <nav className="flex-1 space-y-3">
-          <button
-            onClick={() => setActiveModule("dashboard")}
-            className={`w-full glass-btn p-4 rounded-3xl cursor-pointer font-semibold flex items-center gap-4 transition-all ${activeModule === "dashboard" ? "bg-cyan-500/20 border-cyan-300/30 text-cyan-100" : "text-white/40 border-transparent"}`}
-          >
-            <span className="text-xl">📈</span> Dashboard
-          </button>
-          <button
-            onClick={() => setActiveModule("delegaciones_diarias")}
-            className={`w-full glass-btn p-4 rounded-3xl cursor-pointer font-semibold flex items-center gap-4 transition-all ${activeModule === "delegaciones_diarias" ? "bg-white/10 border-white/20 text-white" : "text-white/40 border-transparent"}`}
-          >
-            <span className="text-xl">📝</span> Delegaciones Diarias
-          </button>
-          <button
-            onClick={() => setActiveModule("archivo_delegaciones")}
-            className={`w-full glass-btn p-4 rounded-3xl cursor-pointer font-semibold flex items-center gap-4 transition-all ${activeModule === "archivo_delegaciones" ? "bg-white/10 border-white/20 text-white" : "text-white/40 border-transparent"}`}
-          >
-            <span className="text-xl">🗂️</span> Archivo Delegaciones
-          </button>
-          <button 
-            onClick={() => setActiveModule("partes")}
-            className={`w-full glass-btn p-4 rounded-3xl cursor-pointer font-semibold flex items-center gap-4 transition-all ${activeModule === "partes" ? "bg-white/10 border-white/20 text-white" : "text-white/40 border-transparent"}`}
-          >
-            <span className="text-xl">🗃️</span> Partes
-          </button>
-          <button
-            onClick={() => setActiveModule("delegaciones")}
-            className={`w-full glass-btn p-4 rounded-3xl cursor-pointer font-semibold flex items-center gap-4 transition-all ${activeModule === "delegaciones" ? "bg-white/10 border-white/20 text-white" : "text-white/40 border-transparent"}`}
-          >
-            <span className="text-xl">🗄️</span> Delegaciones Viejas
-          </button>
-          <button 
-            onClick={() => setActiveModule("partes_viejos")}
-            className={`w-full glass-btn p-4 rounded-3xl cursor-pointer font-semibold flex items-center gap-4 transition-all ${activeModule === "partes_viejos" ? "bg-white/10 border-white/20 text-white" : "text-white/40 border-transparent"}`}
-          >
-            <span className="text-xl">🧾</span> Partes Viejos
-          </button>
-          <button
-            onClick={() => window.open("/caratulas", "_blank")}
-            className="w-full glass-btn p-4 rounded-3xl cursor-pointer font-semibold flex items-center gap-4 transition-all text-cyan-200 border-cyan-400/20 hover:bg-cyan-500/20"
-          >
-            <span className="text-xl">📄</span> Carátulas Excel (Libre)
-          </button>
-          <button
-            onClick={() => window.open("https://ecumbe.github.io/PERITOS2.0/index.html", "_blank", "noopener,noreferrer")}
-            className="w-full glass-btn p-4 rounded-3xl cursor-pointer font-semibold flex items-center gap-4 transition-all text-white/40 border-transparent hover:text-cyan-200"
-          >
-            <span className="text-xl">🌐</span> perito2.0
-          </button>
+          {isPropUser ? (
+            <>
+              <button
+                onClick={() => setActiveModule("archivo_propiedades")}
+                className={`w-full glass-btn p-4 rounded-3xl cursor-pointer font-semibold flex items-center gap-4 transition-all ${activeModule === "archivo_propiedades" ? "bg-cyan-500/20 border-cyan-300/30 text-cyan-100" : "text-white/40 border-transparent"}`}
+              >
+                <span className="text-xl">🗂️</span> Archivo Propiedades
+              </button>
+              <button
+                onClick={() => window.open("/caratulas", "_blank")}
+                className="w-full glass-btn p-4 rounded-3xl cursor-pointer font-semibold flex items-center gap-4 transition-all text-cyan-200 border-cyan-400/20 hover:bg-cyan-500/20"
+              >
+                <span className="text-xl">📄</span> Carátulas Excel (Libre)
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => setActiveModule("dashboard")}
+                className={`w-full glass-btn p-4 rounded-3xl cursor-pointer font-semibold flex items-center gap-4 transition-all ${activeModule === "dashboard" ? "bg-cyan-500/20 border-cyan-300/30 text-cyan-100" : "text-white/40 border-transparent"}`}
+              >
+                <span className="text-xl">📈</span> Dashboard
+              </button>
+              <button
+                onClick={() => setActiveModule("delegaciones_diarias")}
+                className={`w-full glass-btn p-4 rounded-3xl cursor-pointer font-semibold flex items-center gap-4 transition-all ${activeModule === "delegaciones_diarias" ? "bg-white/10 border-white/20 text-white" : "text-white/40 border-transparent"}`}
+              >
+                <span className="text-xl">📝</span> Delegaciones Diarias
+              </button>
+              <button
+                onClick={() => setActiveModule("archivo_delegaciones")}
+                className={`w-full glass-btn p-4 rounded-3xl cursor-pointer font-semibold flex items-center gap-4 transition-all ${activeModule === "archivo_delegaciones" ? "bg-white/10 border-white/20 text-white" : "text-white/40 border-transparent"}`}
+              >
+                <span className="text-xl">🗂️</span> Archivo Delegaciones
+              </button>
+              <button 
+                onClick={() => setActiveModule("partes")}
+                className={`w-full glass-btn p-4 rounded-3xl cursor-pointer font-semibold flex items-center gap-4 transition-all ${activeModule === "partes" ? "bg-white/10 border-white/20 text-white" : "text-white/40 border-transparent"}`}
+              >
+                <span className="text-xl">🗃️</span> Partes
+              </button>
+              <button
+                onClick={() => setActiveModule("delegaciones")}
+                className={`w-full glass-btn p-4 rounded-3xl cursor-pointer font-semibold flex items-center gap-4 transition-all ${activeModule === "delegaciones" ? "bg-white/10 border-white/20 text-white" : "text-white/40 border-transparent"}`}
+              >
+                <span className="text-xl">🗄️</span> Delegaciones Viejas
+              </button>
+              <button 
+                onClick={() => setActiveModule("partes_viejos")}
+                className={`w-full glass-btn p-4 rounded-3xl cursor-pointer font-semibold flex items-center gap-4 transition-all ${activeModule === "partes_viejos" ? "bg-white/10 border-white/20 text-white" : "text-white/40 border-transparent"}`}
+              >
+                <span className="text-xl">🧾</span> Partes Viejos
+              </button>
+              <button
+                onClick={() => window.open("/caratulas", "_blank")}
+                className="w-full glass-btn p-4 rounded-3xl cursor-pointer font-semibold flex items-center gap-4 transition-all text-cyan-200 border-cyan-400/20 hover:bg-cyan-500/20"
+              >
+                <span className="text-xl">📄</span> Carátulas Excel (Libre)
+              </button>
+              <button
+                onClick={() => window.open("https://ecumbe.github.io/PERITOS2.0/index.html", "_blank", "noopener,noreferrer")}
+                className="w-full glass-btn p-4 rounded-3xl cursor-pointer font-semibold flex items-center gap-4 transition-all text-white/40 border-transparent hover:text-cyan-200"
+              >
+                <span className="text-xl">🌐</span> perito2.0
+              </button>
+            </>
+          )}
         </nav>
 
-        <div className="pt-4 border-t border-white/10">
-          <button
-            onClick={onSyncAllTables}
-            disabled={syncingAllTables}
-            className="w-full glass-btn p-4 rounded-3xl cursor-pointer font-semibold flex items-center justify-center gap-3 transition-all bg-cyan-500/20 text-cyan-100 hover:bg-cyan-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {syncingAllTables ? "Actualizando tablas..." : "Actualizar tablas"}
-          </button>
-          <p className="mt-2 text-[10px] text-white/40 text-center uppercase tracking-wide">
-            Actualiza DELEGACIONES y Arch_dele (no modifica FLAGRANCIA)
-          </p>
-        </div>
+        {!isPropUser && (
+          <div className="pt-4 border-t border-white/10">
+            <button
+              onClick={onSyncAllTables}
+              disabled={syncingAllTables}
+              className="w-full glass-btn p-4 rounded-3xl cursor-pointer font-semibold flex items-center justify-center gap-3 transition-all bg-cyan-500/20 text-cyan-100 hover:bg-cyan-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {syncingAllTables ? "Actualizando tablas..." : "Actualizar tablas"}
+            </button>
+            <p className="mt-2 text-[10px] text-white/40 text-center uppercase tracking-wide">
+              Actualiza DELEGACIONES y Arch_dele (no modifica FLAGRANCIA)
+            </p>
+          </div>
+        )}
       </div>
     </aside>
   );

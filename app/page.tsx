@@ -19,13 +19,14 @@ import ArchivoDelegacionesModule from "@/components/ArchivoDelegacionesModule";
 import BasesPartesModule from "@/components/BasesPartesModule";
 import ParaFirmarModule from "@/components/ParaFirmarModule";
 import DashboardOverview from "@/components/DashboardOverview";
+import ArchivoPropiedadesModule from "@/components/ArchivoPropiedadesModule";
 import Notification from "@/components/Notification";
 import { supabase } from "@/lib/supabaseClient";
 import { syncDelegacionesFromFlagranciaGlobal } from "@/components/DelegacionesFlagranciaModule";
 import { syncArchDeleFromFlagranciaGlobal } from "@/components/ArchivoDelegacionesModule";
 
 // Definición estricta de tipos
-type ActiveModule = "dashboard" | "delegaciones" | "delegaciones_diarias" | "partes" | "partes_viejos" | "archivo_delegaciones";
+type ActiveModule = "dashboard" | "delegaciones" | "delegaciones_diarias" | "partes" | "partes_viejos" | "archivo_delegaciones" | "archivo_propiedades";
 type ViewMode = "add" | "edit" | "download" | "delegaciones_flagrancia" | "para_firmar" | "bases_partes";
 
 export default function Home() {
@@ -35,6 +36,7 @@ export default function Home() {
   const [syncingAllTables, setSyncingAllTables] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const [authChecking, setAuthChecking] = useState(true);
+  const [isPropUser, setIsPropUser] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
@@ -83,6 +85,14 @@ export default function Home() {
         setNotification({ message: `No se pudo validar la sesión: ${error.message}`, type: "error" });
       }
 
+      if (data.session) {
+        const userEmail = data.session.user?.email?.toLowerCase() || "";
+        const isAllowedProp = userEmail === "mmontielpj@gmail.com";
+        setIsPropUser(isAllowedProp);
+        if (isAllowedProp) {
+          setActiveModule("archivo_propiedades");
+        }
+      }
       setSession(data.session ?? null);
       setAuthChecking(false);
     };
@@ -93,12 +103,26 @@ export default function Home() {
       if (!isMounted) return;
 
       const nextEmail = nextSession?.user?.email?.toLowerCase() || "";
-      if (allowedEmail && nextSession && nextEmail !== allowedEmail) {
+      const isAllowedAdmin = allowedEmail && nextEmail === allowedEmail;
+      const isAllowedProp = nextEmail === "mmontielpj@gmail.com";
+
+      if (nextSession && !isAllowedAdmin && !isAllowedProp) {
         void supabase.auth.signOut();
         setSession(null);
         setNotification({ message: "Este usuario no tiene permiso para ingresar.", type: "error" });
         setAuthChecking(false);
         return;
+      }
+
+      if (nextSession) {
+        setIsPropUser(isAllowedProp);
+        if (isAllowedProp) {
+          setActiveModule("archivo_propiedades");
+        } else {
+          setActiveModule("dashboard");
+        }
+      } else {
+        setIsPropUser(false);
       }
 
       setSession(nextSession);
@@ -119,7 +143,11 @@ export default function Home() {
       return;
     }
 
-    if (allowedEmail && email.trim().toLowerCase() !== allowedEmail) {
+    const inputEmail = email.trim().toLowerCase();
+    const isAllowedAdmin = allowedEmail && inputEmail === allowedEmail;
+    const isAllowedProp = inputEmail === "mmontielpj@gmail.com";
+
+    if (!isAllowedAdmin && !isAllowedProp) {
       setNotification({ message: "Este correo no está autorizado.", type: "error" });
       return;
     }
@@ -260,6 +288,7 @@ export default function Home() {
         setActiveModule={setActiveModule}
         onSyncAllTables={handleSyncAllTables}
         syncingAllTables={syncingAllTables}
+        isPropUser={isPropUser}
       />
 
       {notification && (
@@ -309,14 +338,16 @@ export default function Home() {
                 ? "Partes Policiales"
                 : activeModule === "partes_viejos"
                 ? "Partes Viejos"
-                : "Archivo Delegaciones"}
+                : activeModule === "archivo_delegaciones"
+                ? "Archivo Delegaciones"
+                : "Archivo Propiedades"}
             </h2>
             <p className="text-[10px] text-white/30 font-bold tracking-[0.2em] uppercase">
               Policía Judicial - Gestión de Archivo
             </p>
           </header>
 
-          {activeModule !== "archivo_delegaciones" && activeModule !== "dashboard" && (
+          {activeModule !== "archivo_delegaciones" && activeModule !== "archivo_propiedades" && activeModule !== "dashboard" && (
             <ControlPanel 
               activeView={view}
               onAdd={() => setView("add")}
@@ -335,6 +366,8 @@ export default function Home() {
             {activeModule === "dashboard" && <DashboardOverview />}
 
             {activeModule === "archivo_delegaciones" && <ArchivoDelegacionesModule />}
+
+            {activeModule === "archivo_propiedades" && <ArchivoPropiedadesModule />}
 
             {view === "add" && (
               activeModule === "delegaciones"
@@ -355,7 +388,7 @@ export default function Home() {
                 ? <EditPartes />
                 : activeModule === "partes_viejos"
                 ? <EditPartes sourceTable="partes_viejas" />
-                : activeModule === "archivo_delegaciones"
+                : activeModule === "archivo_delegaciones" || activeModule === "archivo_propiedades"
                 ? null
                 : <EditModule />
             )}
@@ -366,7 +399,7 @@ export default function Home() {
                 ? <DownloadPartes />
                 : activeModule === "partes_viejos"
                 ? <DownloadPartes sourceTable="partes_viejas" />
-                : activeModule === "archivo_delegaciones"
+                : activeModule === "archivo_delegaciones" || activeModule === "archivo_propiedades"
                 ? null
                 : <DownloadModule />
             )}

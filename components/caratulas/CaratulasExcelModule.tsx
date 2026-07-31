@@ -328,6 +328,7 @@ export default function CaratulasExcelModule() {
   const [filtroAplicado, setFiltroAplicado] = useState(false);
   const [pdfTemplate, setPdfTemplate] = useState("");
   const [pdfAllLoading, setPdfAllLoading] = useState(false);
+  const [pdfMergedLoading, setPdfMergedLoading] = useState(false);
   const [notification, setNotification] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
   const [searchExpediente, setSearchExpediente] = useState("");
 
@@ -664,8 +665,11 @@ export default function CaratulasExcelModule() {
     container.style.background = "#ffffff";
     container.style.color = "#000000";
     container.style.fontFamily = "Arial, Helvetica, sans-serif";
-    container.style.padding = "0";
+    container.style.padding = "24px";
     container.style.boxSizing = "border-box";
+    container.style.display = "flex";
+    container.style.justifyContent = "center";
+    container.style.alignItems = "center";
     container.innerHTML = `
       <style>
         * { color: #000 !important; -webkit-text-fill-color: #000 !important; }
@@ -812,6 +816,83 @@ export default function CaratulasExcelModule() {
     }
   };
 
+  const descargarTodosPdfUnificado = async () => {
+    if (filteredRows.length === 0) {
+      setNotification({ message: "No hay registros para descargar.", type: "info" });
+      return;
+    }
+    if (!pdfTemplate) {
+      setNotification({ message: "La plantilla no se ha cargado.", type: "error" });
+      return;
+    }
+
+    setPdfMergedLoading(true);
+    try {
+      const mergedPdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+      const pageWidth = mergedPdf.internal.pageSize.getWidth();
+      const pageHeight = mergedPdf.internal.pageSize.getHeight();
+      const margin = 6;
+      const maxWidth = pageWidth - margin * 2;
+      const maxHeight = pageHeight - margin * 2;
+
+      for (let i = 0; i < filteredRows.length; i++) {
+        const row = filteredRows[i];
+        const templateFilled = replaceTemplateTokens(pdfTemplate, {
+          descripcion: toText(readFirstValue(row, ARCHIVO_HEADERS[4].keys)),
+          expediente: getExpedienteFromRow(row),
+          apertura: toDisplayDate(toText(readFirstValue(row, ARCHIVO_HEADERS[5].keys))),
+          cierre: toDisplayDate(getCierreFromRow(row)),
+          fojas: toText(readFirstValue(row, ARCHIVO_HEADERS[7].keys)),
+          tomo: toText(readFirstValue(row, ARCHIVO_HEADERS[3].keys)),
+        });
+
+        const container = document.createElement("div");
+        container.style.position = "fixed";
+        container.style.left = "-100000px";
+        container.style.top = "0";
+        container.style.width = "1123px";
+        container.style.minHeight = "794px";
+        container.style.background = "#ffffff";
+        container.style.color = "#000000";
+        container.style.fontFamily = "Arial, Helvetica, sans-serif";
+        container.style.padding = "24px";
+        container.style.boxSizing = "border-box";
+        container.style.display = "flex";
+        container.style.justifyContent = "center";
+        container.style.alignItems = "center";
+        container.innerHTML = `<style>* { color: #000 !important; -webkit-text-fill-color: #000 !important; } img { display: block; }</style>${templateFilled}`;
+        document.body.appendChild(container);
+
+        const images = Array.from(container.querySelectorAll("img"));
+        await Promise.all(images.map((img) => new Promise<void>((resolve) => { if (img.complete) { resolve(); return; } const done = () => resolve(); img.addEventListener("load", done, { once: true }); img.addEventListener("error", done, { once: true }); })));
+
+        const canvas = await html2canvas(container, { scale: 3, useCORS: true, backgroundColor: "#ffffff", logging: false, windowWidth: container.scrollWidth, windowHeight: container.scrollHeight });
+        document.body.removeChild(container);
+
+        if (i > 0) mergedPdf.addPage();
+        const imgData = canvas.toDataURL("image/png");
+        const canvasRatio = canvas.width / canvas.height;
+        let renderWidth = maxWidth;
+        let renderHeight = renderWidth / canvasRatio;
+        if (renderHeight > maxHeight) { renderHeight = maxHeight; renderWidth = renderHeight * canvasRatio; }
+        const offsetX = (pageWidth - renderWidth) / 2;
+        const offsetY = (pageHeight - renderHeight) / 2;
+        mergedPdf.setFillColor(255, 255, 255);
+        mergedPdf.rect(0, 0, pageWidth, pageHeight, "F");
+        mergedPdf.addImage(imgData, "PNG", offsetX, offsetY, renderWidth, renderHeight, undefined, "FAST");
+      }
+
+      const stamp = new Date().toISOString().slice(0, 10);
+      mergedPdf.save(`CARATULAS_DELEGACIONES_${stamp}.pdf`);
+      setNotification({ message: `PDF unificado generado con ${filteredRows.length} página(s).`, type: "success" });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Error desconocido";
+      setNotification({ message: `Error: ${msg}`, type: "error" });
+    } finally {
+      setPdfMergedLoading(false);
+    }
+  };
+
   /* ═══════════════════ RENDER ═══════════════════ */
   return (
     <div className="flex flex-col h-full w-full max-w-7xl mx-auto gap-3 text-white overflow-hidden">
@@ -929,6 +1010,13 @@ export default function CaratulasExcelModule() {
             className="px-5 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs tracking-wide shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer flex items-center gap-2"
           >
             {pdfAllLoading ? "Generando ZIP..." : "Descargar todos los PDF (ZIP)"}
+          </button>
+          <button
+            onClick={descargarTodosPdfUnificado}
+            disabled={pdfMergedLoading || displayRows.length === 0}
+            className="px-5 py-2 rounded-xl bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white font-bold text-xs tracking-wide shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer flex items-center gap-2"
+          >
+            {pdfMergedLoading ? "Generando PDF..." : "Descargar PDF Unificado"}
           </button>
           <div className="flex items-center gap-2 flex-1 min-w-[200px] max-w-sm">
             <span className="text-slate-400 text-sm">🔍</span>

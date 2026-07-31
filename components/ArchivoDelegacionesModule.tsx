@@ -643,6 +643,7 @@ export default function ArchivoDelegacionesModule() {
   const [finDay, setFinDay] = useState("");
   const [pdfTemplate, setPdfTemplate] = useState("");
   const [pdfAllLoading, setPdfAllLoading] = useState(false);
+  const [pdfMergedLoading, setPdfMergedLoading] = useState(false);
 
   const fechaInicioTotal = useMemo(() => buildIsoDate(inicioYear, inicioMonth, inicioDay), [inicioYear, inicioMonth, inicioDay]);
   const fechaFinTotal = useMemo(() => buildIsoDate(finYear, finMonth, finDay), [finYear, finMonth, finDay]);
@@ -747,8 +748,11 @@ export default function ArchivoDelegacionesModule() {
     container.style.background = "#ffffff";
     container.style.color = "#000000";
     container.style.fontFamily = "Arial, Helvetica, sans-serif";
-    container.style.padding = "0";
+    container.style.padding = "24px";
     container.style.boxSizing = "border-box";
+    container.style.display = "flex";
+    container.style.justifyContent = "center";
+    container.style.alignItems = "center";
     container.innerHTML = `
       <style>
         * { color: #000 !important; -webkit-text-fill-color: #000 !important; }
@@ -891,6 +895,83 @@ export default function ArchivoDelegacionesModule() {
       setNotification({ message: `No se pudieron generar los PDFs: ${msg}`, type: "error" });
     } finally {
       setPdfAllLoading(false);
+    }
+  };
+
+  const descargarTodosPdfUnificado = async () => {
+    if (!filtroAplicadoTotal || registrosTotal.length === 0) {
+      setNotification({ message: "Primero filtra Archivo total para generar el PDF.", type: "info" });
+      return;
+    }
+    if (!pdfTemplate) {
+      setNotification({ message: "Aún no se cargó la plantilla de formato para PDF.", type: "error" });
+      return;
+    }
+
+    setPdfMergedLoading(true);
+    try {
+      const mergedPdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+      const pageWidth = mergedPdf.internal.pageSize.getWidth();
+      const pageHeight = mergedPdf.internal.pageSize.getHeight();
+      const margin = 6;
+      const maxWidth = pageWidth - margin * 2;
+      const maxHeight = pageHeight - margin * 2;
+
+      for (let i = 0; i < registrosTotal.length; i++) {
+        const row = registrosTotal[i];
+        const templateFilled = replaceTemplateTokens(pdfTemplate, {
+          descripcion: toText(readFirstValue(row, ["DESCRIPCIÓN", "DESCRIPCION", "descripcion"])),
+          expediente: getExpedienteFromRow(row),
+          apertura: toDisplayDate(toText(readFirstValue(row, ["APERTURA", "FECHA_APERTURA", "fecha_apertura"]))),
+          cierre: toDisplayDate(getCierreFromRow(row)),
+          fojas: toText(readFirstValue(row, ["N°FOJAS", "N_FOJAS", "n_fojas"])),
+          tomo: toText(readFirstValue(row, ["N°_DE_TOMO", "N_DE_TOMO", "N_TOMO", "n_tomo"])),
+        });
+
+        const container = document.createElement("div");
+        container.style.position = "fixed";
+        container.style.left = "-100000px";
+        container.style.top = "0";
+        container.style.width = "1123px";
+        container.style.minHeight = "794px";
+        container.style.background = "#ffffff";
+        container.style.color = "#000000";
+        container.style.fontFamily = "Arial, Helvetica, sans-serif";
+        container.style.padding = "24px";
+        container.style.boxSizing = "border-box";
+        container.style.display = "flex";
+        container.style.justifyContent = "center";
+        container.style.alignItems = "center";
+        container.innerHTML = `<style>* { color: #000 !important; -webkit-text-fill-color: #000 !important; } img { display: block; }</style>${templateFilled}`;
+        document.body.appendChild(container);
+
+        const images = Array.from(container.querySelectorAll("img"));
+        await Promise.all(images.map((img) => new Promise<void>((resolve) => { if (img.complete) { resolve(); return; } const done = () => resolve(); img.addEventListener("load", done, { once: true }); img.addEventListener("error", done, { once: true }); })));
+
+        const canvas = await html2canvas(container, { scale: 3, useCORS: true, backgroundColor: "#ffffff", logging: false, windowWidth: container.scrollWidth, windowHeight: container.scrollHeight });
+        document.body.removeChild(container);
+
+        if (i > 0) mergedPdf.addPage();
+        const imgData = canvas.toDataURL("image/png");
+        const canvasRatio = canvas.width / canvas.height;
+        let renderWidth = maxWidth;
+        let renderHeight = renderWidth / canvasRatio;
+        if (renderHeight > maxHeight) { renderHeight = maxHeight; renderWidth = renderHeight * canvasRatio; }
+        const offsetX = (pageWidth - renderWidth) / 2;
+        const offsetY = (pageHeight - renderHeight) / 2;
+        mergedPdf.setFillColor(255, 255, 255);
+        mergedPdf.rect(0, 0, pageWidth, pageHeight, "F");
+        mergedPdf.addImage(imgData, "PNG", offsetX, offsetY, renderWidth, renderHeight, undefined, "FAST");
+      }
+
+      const stamp = new Date().toISOString().slice(0, 10);
+      mergedPdf.save(`ARCH_DELE_PDF_${stamp}.pdf`);
+      setNotification({ message: `PDF unificado generado con ${registrosTotal.length} página(s).`, type: "success" });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Error desconocido";
+      setNotification({ message: `No se pudo generar el PDF: ${msg}`, type: "error" });
+    } finally {
+      setPdfMergedLoading(false);
     }
   };
 
@@ -1568,6 +1649,14 @@ export default function ArchivoDelegacionesModule() {
             className="px-4 py-2 rounded-xl text-xs font-bold transition-all bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {pdfAllLoading ? "Generando ZIP de PDFs..." : "Descargar todos los PDF (ZIP)"}
+          </button>
+
+          <button
+            onClick={descargarTodosPdfUnificado}
+            disabled={pdfMergedLoading || loadingTotal || !filtroAplicadoTotal || registrosTotal.length === 0 || !pdfTemplate}
+            className="px-4 py-2 rounded-xl text-xs font-bold transition-all bg-gradient-to-r from-rose-600 to-pink-600 text-white hover:from-rose-500 hover:to-pink-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {pdfMergedLoading ? "Generando PDF..." : "Descargar PDF Unificado"}
           </button>
 
           <div className="rounded-2xl border border-white/10 bg-black/20 overflow-hidden">

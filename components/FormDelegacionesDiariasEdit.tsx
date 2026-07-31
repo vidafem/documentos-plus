@@ -473,7 +473,7 @@ export default function FormDelegacionesDiarias({
       .from("delitos")
       .select("DELITO, DELITO_TIPIFICADO_EN_DELEGACION, TIPO_DE_DELITO")
       .ilike("DELITO", `%${texto}%`)
-      .limit(8);
+      .limit(100);
 
     if (error) {
       console.error("Error cargando delitos:", error.message);
@@ -481,8 +481,26 @@ export default function FormDelegacionesDiarias({
       return;
     }
 
-    const sugerencias = ((data || []) as DelitoSuggestion[]).filter((item) => item.DELITO);
-    setDelitoSugerencias(sugerencias);
+    // Deduplicate by DELITO while keeping the full object
+    const uniqueMap = new Map<string, DelitoSuggestion>();
+    ((data || []) as DelitoSuggestion[]).forEach((item) => {
+      if (item.DELITO) {
+        const clean = item.DELITO.trim();
+        if (!uniqueMap.has(clean)) {
+          uniqueMap.set(clean, item);
+        }
+      }
+    });
+
+    const sugerencias = Array.from(uniqueMap.values());
+    
+    // Sort by length of DELITO
+    sugerencias.sort((a, b) => a.DELITO.length - b.DELITO.length);
+
+    // Limit to top 15 matches
+    const suggestionsList = sugerencias.slice(0, 15);
+
+    setDelitoSugerencias(suggestionsList);
   };
 
   const seleccionarDelito = (item: DelitoSuggestion) => {
