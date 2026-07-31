@@ -589,17 +589,17 @@ export default function ArchivoPropiedadesModule() {
   // Open Edit Modal
   const openEdit = (row: GenericRow) => {
     setEditingRecord(row);
-    setEditCaja(toText(row["N°CAJA"]));
-    setEditTomo(toText(row["N°_DE_TOMO"]));
-    setEditExpediente(toText(row["N°_DE_EXPEDIENTE"]));
-    setEditDescripcion(toText(row["DESCRIPCIÓN"]));
-    setEditApertura(toText(row["APERTURA"]));
-    setEditCierre(toText(row["CIERRE"]));
-    setEditFojas(toText(row["N°FOJAS"]));
-    setEditDestino(toText(row["DESTINO_FINAL"]));
-    setEditSoporte(toText(row["SOPORTE"]));
-    setEditUbicacion(toText(row["UBICACIÓN"] || row["ubicacion"]));
-    setEditObservaciones(toText(row["OBSERVACIONES"] || row["observaciones"]));
+    setEditCaja(toText(readFirstValue(row, ARCHIVO_HEADERS[1].keys)));
+    setEditTomo(toText(readFirstValue(row, ARCHIVO_HEADERS[3].keys)));
+    setEditExpediente(toText(readFirstValue(row, ARCHIVO_HEADERS[2].keys)));
+    setEditDescripcion(toText(readFirstValue(row, ARCHIVO_HEADERS[4].keys)));
+    setEditApertura(toText(readFirstValue(row, ARCHIVO_HEADERS[5].keys)));
+    setEditCierre(toText(readFirstValue(row, ARCHIVO_HEADERS[6].keys)));
+    setEditFojas(toText(readFirstValue(row, ARCHIVO_HEADERS[7].keys)));
+    setEditDestino(toText(readFirstValue(row, ARCHIVO_HEADERS[8].keys)));
+    setEditSoporte(toText(readFirstValue(row, ARCHIVO_HEADERS[9].keys)));
+    setEditUbicacion(toText(row["ubicacion"] || row["UBICACIÓN"]));
+    setEditObservaciones(toText(row["observaciones"] || row["OBSERVACIONES"]));
   };
 
   // Save Edit Row
