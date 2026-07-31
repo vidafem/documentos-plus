@@ -552,12 +552,17 @@ export default function BasesPartesModule({ sourceTable, title }: BasesPartesMod
 
         const isHeader = r === 0;
         const isDateColumn = c === 5 || c === 6;
+        const isFojasColumn = c === 7;
         if (!isHeader) {
           const excelSerial = isDateColumn ? isoDateToExcelSerial(String(worksheet[cellAddress].v ?? "")) : null;
           if (excelSerial !== null) {
             worksheet[cellAddress].t = "n";
             worksheet[cellAddress].v = excelSerial;
             (worksheet[cellAddress] as XLSX.CellObject & { z?: string }).z = "yyyy-mm-dd";
+          } else if (isFojasColumn && String(worksheet[cellAddress].v ?? "").trim() !== "" && !isNaN(Number(worksheet[cellAddress].v))) {
+            worksheet[cellAddress].t = "n";
+            worksheet[cellAddress].v = Number(worksheet[cellAddress].v);
+            (worksheet[cellAddress] as XLSX.CellObject & { z?: string }).z = "0";
           } else {
             worksheet[cellAddress].t = "s";
             worksheet[cellAddress].v = String(worksheet[cellAddress].v ?? "");

@@ -993,10 +993,15 @@ export default function ArchivoPropiedadesModule() {
           const isDateColumn = dateColIndexes.has(c);
           const excelSerial = isDateColumn ? isoDateToExcelSerial(originalValue) : null;
 
+          const isFojasColumn = c === 7;
           if (excelSerial !== null) {
             cell.t = "n";
             cell.v = excelSerial;
             cell.z = "yyyy-mm-dd";
+          } else if (isFojasColumn && originalValue.trim() !== "" && !isNaN(Number(originalValue))) {
+            cell.t = "n";
+            cell.v = Number(originalValue);
+            cell.z = "0";
           } else {
             cell.t = "s";
             cell.v = originalValue;
@@ -1005,7 +1010,7 @@ export default function ArchivoPropiedadesModule() {
 
           cell.s = {
             font: { name: "Calibri", sz: 11, color: { rgb: "FF000000" } },
-            alignment: { horizontal: isDateColumn ? "center" : "left", vertical: "center", wrapText: true },
+            alignment: { horizontal: isDateColumn || isFojasColumn ? "center" : "left", vertical: "center", wrapText: true },
             border: thinBorder,
           };
         }
