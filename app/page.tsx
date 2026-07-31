@@ -76,8 +76,6 @@ export default function Home() {
   useEffect(() => {
     let isMounted = true;
 
-    const hasInitializedRef = { current: false };
-
     const bootstrapSession = async () => {
       const { data, error } = await supabase.auth.getSession();
 
@@ -91,9 +89,10 @@ export default function Home() {
         const userEmail = data.session.user?.email?.toLowerCase() || "";
         const isAllowedProp = userEmail === "mmontielpj@gmail.com";
         setIsPropUser(isAllowedProp);
-        if (isAllowedProp && !hasInitializedRef.current) {
-          hasInitializedRef.current = true;
+        if (isAllowedProp) {
           setActiveModule("archivo_propiedades");
+        } else {
+          setActiveModule("dashboard");
         }
       }
       setSession(data.session ?? null);
@@ -119,15 +118,6 @@ export default function Home() {
 
       if (nextSession) {
         setIsPropUser(isAllowedProp);
-        // Only change activeModule when manually logging in (SIGNED_IN) or on the very first load
-        if (event === "SIGNED_IN" || !hasInitializedRef.current) {
-          hasInitializedRef.current = true;
-          if (isAllowedProp) {
-            setActiveModule("archivo_propiedades");
-          } else {
-            setActiveModule("dashboard");
-          }
-        }
       } else {
         setIsPropUser(false);
       }
@@ -171,6 +161,13 @@ export default function Home() {
     if (error) {
       setNotification({ message: `Error de inicio de sesión: ${error.message}`, type: "error" });
       return;
+    }
+
+    // Set visually appropriate module immediately on successful manual login
+    if (isAllowedProp) {
+      setActiveModule("archivo_propiedades");
+    } else {
+      setActiveModule("dashboard");
     }
 
     setNotification({ message: "Sesión iniciada con éxito.", type: "success" });
