@@ -269,17 +269,17 @@ export default function FormPartes() {
           </div>
 
           {/* FILA 2: CÓDIGO PP (ACTUALIZADO A 12 DÍGITOS) */}
-          <div className="space-y-0.5">
+          <div className="space-y-1">
             <label className="text-[8px] font-bold text-white/30 uppercase">Código PP (12 dígitos finales)</label>
             <div className={`flex items-center bg-white/5 border rounded-xl overflow-hidden h-9 ${
               ppUnicidad === "unique" ? "border-emerald-500 focus-within:border-emerald-500" :
               ppUnicidad === "duplicate" ? "border-blue-500 focus-within:border-blue-500" :
               "border-white/10 focus-within:border-indigo-500"
             }`}>
-              <span className="bg-white/10 px-3 h-full flex items-center text-[10px] font-mono text-indigo-300 font-bold">
-                PP-{normalizeYearInput(anio)}{mesProceso}{diaCierre.padStart(2, "0")}
+              <span className="bg-indigo-500/20 px-3 h-full flex items-center text-[10px] font-mono text-indigo-300 font-bold border-r border-white/10">
+                PP-{(normalizeYearInput(anio) || "2021").padStart(4, "0")}{(mesProceso || "01").padStart(2, "0")}{(diaCierre || "01").padStart(2, "0")}
               </span>
-              <input required type="text" maxLength={12} value={ppUltimos10} onChange={e => setPpUltimos10(e.target.value)} className="flex-1 bg-transparent px-3 text-sm text-white outline-none font-bold" placeholder="000000000000" />
+              <input required type="text" maxLength={12} value={ppUltimos10} onChange={e => setPpUltimos10(e.target.value)} className="flex-1 bg-transparent px-3 text-sm text-white outline-none font-bold font-mono tracking-wider" placeholder="000000000000" />
             </div>
             {ppUnicidad === "unique" && <p className="text-[9px] text-emerald-400 font-bold uppercase mt-0.5 px-1">Código PP Disponible</p>}
             {ppUnicidad === "duplicate" && <p className="text-[9px] text-blue-400 font-bold uppercase mt-0.5 px-1">Código PP Duplicado (Revisar)</p>}
@@ -312,11 +312,16 @@ export default function FormPartes() {
             </div>
           </div>
 
-          {/* VISTA PREVIA DE LA DESCRIPCIÓN RESULTANTE */}
-          <div className="bg-black/40 p-2.5 rounded-xl border border-white/5 space-y-1">
-            <span className="text-[8px] font-bold text-indigo-400 uppercase tracking-widest">Vista Previa Descripción:</span>
-            <p className="text-[10px] font-mono text-white/80 break-all leading-tight">
-              PP-{normalizeYearInput(anio)}{mesProceso}{diaCierre.padStart(2, "0")}{ppUltimos10}; DETENIDO(S): {normalizeDetenidosForSave(detenidos)}; DELITO: {normalizeUpper(delito).trim()}
+          {/* VISTA PREVIA EN TIEMPO REAL DEL CÓDIGO PP Y DESCRIPCIÓN RESULTANTE */}
+          <div className="bg-indigo-950/40 p-3 rounded-xl border border-indigo-500/20 space-y-1.5 shadow-inner">
+            <div className="flex justify-between items-center border-b border-white/5 pb-1">
+              <span className="text-[9px] font-bold text-indigo-300 uppercase tracking-wider">Vista Previa Código PP:</span>
+              <span className="text-xs font-mono font-black text-emerald-400 tracking-wider">
+                PP-{(normalizeYearInput(anio) || "2021").padStart(4, "0")}{(mesProceso || "01").padStart(2, "0")}{(diaCierre || "01").padStart(2, "0")}{ppUltimos10 || "000000000000"}
+              </span>
+            </div>
+            <p className="text-[9px] font-mono text-white/70 break-all leading-tight">
+              <strong className="text-indigo-400">Descripción a Guardar:</strong> PP-{(normalizeYearInput(anio) || "2021").padStart(4, "0")}{(mesProceso || "01").padStart(2, "0")}{(diaCierre || "01").padStart(2, "0")}{ppUltimos10}; DETENIDO(S): {normalizeDetenidosForSave(detenidos) || "..."}; DELITO: {normalizeUpper(delito).trim() || "..."}
             </p>
           </div>
 
