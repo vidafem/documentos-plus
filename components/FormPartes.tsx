@@ -276,8 +276,8 @@ export default function FormPartes() {
               ppUnicidad === "duplicate" ? "border-blue-500 focus-within:border-blue-500" :
               "border-white/10 focus-within:border-indigo-500"
             }`}>
-              <span className="bg-white/10 px-3 h-full flex items-center text-[10px] font-mono text-white/40">
-                PP-{anio}{mesProceso}{diaCierre.padStart(2, "0")}
+              <span className="bg-white/10 px-3 h-full flex items-center text-[10px] font-mono text-indigo-300 font-bold">
+                PP-{normalizeYearInput(anio)}{mesProceso}{diaCierre.padStart(2, "0")}
               </span>
               <input required type="text" maxLength={12} value={ppUltimos10} onChange={e => setPpUltimos10(e.target.value)} className="flex-1 bg-transparent px-3 text-sm text-white outline-none font-bold" placeholder="000000000000" />
             </div>
@@ -310,6 +310,14 @@ export default function FormPartes() {
               <label className="text-[8px] font-bold text-white/30 uppercase">N° Fojas</label>
               <input required type="text" maxLength={3} value={fojas} onChange={e => setFojas(e.target.value)} className="w-full bg-white/10 border border-white/10 rounded-xl py-2 text-center text-xs text-white font-bold outline-none focus:border-indigo-500" placeholder="0" />
             </div>
+          </div>
+
+          {/* VISTA PREVIA DE LA DESCRIPCIÓN RESULTANTE */}
+          <div className="bg-black/40 p-2.5 rounded-xl border border-white/5 space-y-1">
+            <span className="text-[8px] font-bold text-indigo-400 uppercase tracking-widest">Vista Previa Descripción:</span>
+            <p className="text-[10px] font-mono text-white/80 break-all leading-tight">
+              PP-{normalizeYearInput(anio)}{mesProceso}{diaCierre.padStart(2, "0")}{ppUltimos10}; DETENIDO(S): {normalizeDetenidosForSave(detenidos)}; DELITO: {normalizeUpper(delito).trim()}
+            </p>
           </div>
 
           {/* BOTÓN FINAL CON ESTADOS DINÁMICOS */}
