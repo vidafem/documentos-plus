@@ -342,9 +342,17 @@ export default function ArchivoPropiedadesModule() {
   const [globalYear, setGlobalYear] = useState(() => String(new Date().getFullYear()));
   const [caja, setCaja] = useState("N/A");
   const [tomo, setTomo] = useState("1/1");
+  const [isDuplicate, setIsDuplicate] = useState(false);
+
+  // New Expediente Type and dynamic fields
+  const [expedienteType, setExpedienteType] = useState<"ip" | "if" | "if_largo" | "acto">("ip");
   const [expedienteSeq, setExpedienteSeq] = useState("");
   const [expedienteYear, setExpedienteYear] = useState(() => String(new Date().getFullYear()).slice(-2));
-  const [isDuplicate, setIsDuplicate] = useState(false);
+  const [largoPrefix, setLargoPrefix] = useState("09");
+  const [largoSeq, setLargoSeq] = useState("");
+  const [actoNumber, setActoNumber] = useState("");
+  const [actoLetters, setActoLetters] = useState("OT");
+  const [actoFreeText, setActoFreeText] = useState("");
 
   // Description components
   const [descFpg, setDescFpg] = useState("Oficio No. FPG-FDACE");
@@ -386,12 +394,30 @@ export default function ArchivoPropiedadesModule() {
 
   // Compute final expediente
   const finalExpediente = useMemo(() => {
-    return `I.P.0901018${expedienteYear}${expedienteSeq.trim()}`;
-  }, [expedienteYear, expedienteSeq]);
+    switch (expedienteType) {
+      case "ip":
+        return `I.P. 0901018${expedienteYear}${expedienteSeq.trim()}`;
+      case "if":
+        return `I.F. 0901018${expedienteYear}${expedienteSeq.trim()}`;
+      case "if_largo": {
+        const parenthesized = `(${largoPrefix.trim()}${largoSeq.trim()})`;
+        return `I.F. 0901018${expedienteYear}${expedienteSeq.trim()} ${parenthesized}`;
+      }
+      case "acto":
+        return `Acto Administrativo No. ${actoNumber.trim()}-AA-${actoLetters.trim().toUpperCase()}-${actoFreeText.trim().toUpperCase()}`;
+      default:
+        return "";
+    }
+  }, [expedienteType, expedienteYear, expedienteSeq, largoPrefix, largoSeq, actoNumber, actoLetters, actoFreeText]);
 
   // Check duplicate expediente (with debounce)
   useEffect(() => {
-    if (!expedienteSeq.trim()) {
+    const isIpOrIf = expedienteType === "ip" || expedienteType === "if" || expedienteType === "if_largo";
+    if (isIpOrIf && !expedienteSeq.trim()) {
+      setIsDuplicate(false);
+      return;
+    }
+    if (expedienteType === "acto" && !actoNumber.trim()) {
       setIsDuplicate(false);
       return;
     }
@@ -412,7 +438,7 @@ export default function ArchivoPropiedadesModule() {
     }, 4000);
 
     return () => clearTimeout(timer);
-  }, [finalExpediente, expedienteSeq]);
+  }, [finalExpediente, expedienteType, expedienteSeq, actoNumber]);
 
   // Fetch Delitos suggestions
   const fetchDelitos = async (text: string) => {
@@ -468,10 +494,55 @@ export default function ArchivoPropiedadesModule() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!expedienteSeq.trim()) {
-      setNotification({ message: "Por favor ingresa el número secuencial de expediente.", type: "error" });
-      return;
+    if (expedienteType === "ip" || expedienteType === "if") {
+      if (!expedienteSeq.trim()) {
+        setNotification({ message: "Por favor ingresa el número secuencial de expediente.", type: "error" });
+        return;
+      }
+      if (expedienteSeq.length !== 6 || !/^\d{6}$/.test(expedienteSeq)) {
+        setNotification({ message: "El número secuencial de expediente debe tener exactamente 6 dígitos (solo números).", type: "error" });
+        return;
+      }
+    } else if (expedienteType === "if_largo") {
+      if (!expedienteSeq.trim()) {
+        setNotification({ message: "Por favor ingresa el número secuencial de expediente.", type: "error" });
+        return;
+      }
+      if (expedienteSeq.length !== 6 || !/^\d{6}$/.test(expedienteSeq)) {
+        setNotification({ message: "El número secuencial de expediente debe tener exactamente 6 dígitos (solo números).", type: "error" });
+        return;
+      }
+      if (!largoSeq.trim()) {
+        setNotification({ message: "Por favor ingresa los 12 dígitos de la segunda parte del expediente largo.", type: "error" });
+        return;
+      }
+      if (largoSeq.length !== 12 || !/^\d{12}$/.test(largoSeq)) {
+        setNotification({ message: "La segunda parte del expediente largo debe tener exactamente 12 dígitos (solo números).", type: "error" });
+        return;
+      }
+    } else if (expedienteType === "acto") {
+      if (!actoNumber.trim()) {
+        setNotification({ message: "Por favor ingresa el número del Acto Administrativo.", type: "error" });
+        return;
+      }
+      if (actoNumber.length !== 5 || !/^\d{5}$/.test(actoNumber)) {
+        setNotification({ message: "El número de Acto Administrativo debe tener exactamente 5 dígitos.", type: "error" });
+        return;
+      }
+      if (!actoLetters.trim()) {
+        setNotification({ message: "Por favor ingresa las dos letras del Acto Administrativo.", type: "error" });
+        return;
+      }
+      if (actoLetters.length !== 2 || !/^[a-zA-Z]{2}$/.test(actoLetters)) {
+        setNotification({ message: "Las letras de Acto Administrativo deben ser exactamente 2 letras.", type: "error" });
+        return;
+      }
+      if (!actoFreeText.trim()) {
+        setNotification({ message: "Por favor completa el campo de texto libre para el Acto Administrativo.", type: "error" });
+        return;
+      }
     }
+
     if (isDuplicate) {
       setNotification({ message: "No se puede guardar: El expediente ya existe y está duplicado (color rojo).", type: "error" });
       return;
@@ -509,6 +580,9 @@ export default function ArchivoPropiedadesModule() {
       setNotification({ message: "¡Registro guardado correctamente!", type: "success" });
       // Reset only non-persistent sequential fields
       setExpedienteSeq("");
+      setLargoSeq("");
+      setActoNumber("");
+      setActoFreeText("");
       setDescSeq("");
       setDenunciante("");
       setSospechoso("");
@@ -1110,45 +1184,150 @@ export default function ArchivoPropiedadesModule() {
                 className="bg-slate-900 border border-slate-700 rounded-xl px-2 py-1.5 text-xs text-white focus:border-cyan-400 outline-none text-center font-semibold"
               />
             </div>
-            {/* Expediente */}
-            <div className="flex flex-col gap-1 w-52 relative">
-              <label className="text-[9px] font-bold text-slate-400 tracking-wider uppercase">N° Expediente</label>
-              <div className="flex items-center bg-slate-900 border border-slate-700 rounded-xl px-2 py-1.5 text-xs text-white focus-within:border-cyan-400">
-                <span className="text-slate-500 font-semibold select-none pr-0.5">I.P.0901018</span>
-                <input
-                  type="text"
-                  maxLength={2}
-                  value={expedienteYear}
-                  onChange={(e) => setExpedienteYear(e.target.value.replace(/\D/g, ""))}
-                  className="bg-transparent w-6 focus:outline-none font-bold text-center text-cyan-300 mr-0.5"
-                />
-                <input
-                  type="text"
-                  maxLength={6}
-                  value={expedienteSeq}
-                  onChange={(e) => setExpedienteSeq(e.target.value.replace(/\D/g, ""))}
-                  placeholder="033423"
-                  className={`bg-transparent w-full focus:outline-none font-bold ${isDuplicate ? "text-red-500" : "text-cyan-300"}`}
-                />
-              </div>
-              {isDuplicate && (
-                <span className="text-[8px] text-red-400 font-bold uppercase mt-1 absolute -bottom-3.5 right-0">⚠️ Duplicado</span>
-              )}
+            {/* Tipo de Expediente */}
+            <div className="flex flex-col gap-1 w-44">
+              <label className="text-[9px] font-bold text-slate-400 tracking-wider uppercase">Tipo de Expediente</label>
+              <select
+                value={expedienteType}
+                onChange={(e) => setExpedienteType(e.target.value as any)}
+                className="bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white focus:border-cyan-400 outline-none font-semibold cursor-pointer h-[32px]"
+              >
+                <option value="ip">I.P. 0901018(año)</option>
+                <option value="if">I.F. 0901018(año)</option>
+                <option value="if_largo">I.F. 0901018(largo)</option>
+                <option value="acto">Acto Administrativo</option>
+              </select>
             </div>
 
+            {/* Campos Dinámicos de N° Expediente */}
+            {(expedienteType === "ip" || expedienteType === "if") && (
+              <div className="flex flex-col gap-1 w-[220px] relative">
+                <label className="text-[9px] font-bold text-slate-400 tracking-wider uppercase">N° Expediente</label>
+                <div className="flex items-center bg-slate-900 border border-slate-700 rounded-xl px-2 py-1.5 text-xs text-white focus-within:border-cyan-400 h-[32px]">
+                  <span className="text-slate-500 font-semibold select-none pr-0.5 whitespace-nowrap flex-shrink-0">
+                    {expedienteType === "ip" ? "I.P. 0901018" : "I.F. 0901018"}
+                  </span>
+                  <input
+                    type="text"
+                    maxLength={2}
+                    value={expedienteYear}
+                    onChange={(e) => setExpedienteYear(e.target.value.replace(/\D/g, ""))}
+                    className="bg-transparent w-6 focus:outline-none font-bold text-center text-cyan-300 mr-0.5 flex-shrink-0"
+                    title="Año (2 dígitos)"
+                  />
+                  <input
+                    type="text"
+                    maxLength={6}
+                    value={expedienteSeq}
+                    onChange={(e) => setExpedienteSeq(e.target.value.replace(/\D/g, ""))}
+                    placeholder="033423"
+                    className={`bg-transparent flex-1 focus:outline-none font-bold min-w-[60px] ${isDuplicate ? "text-red-500" : "text-cyan-300"}`}
+                  />
+                </div>
+                {isDuplicate && (
+                  <span className="text-[8px] text-red-400 font-bold uppercase mt-1 absolute -bottom-3.5 right-0">⚠️ Duplicado</span>
+                )}
+              </div>
+            )}
+
+            {expedienteType === "if_largo" && (
+              <div className="flex flex-col gap-1 w-[330px] relative">
+                <label className="text-[9px] font-bold text-slate-400 tracking-wider uppercase">N° Expediente (Largo)</label>
+                <div className="flex items-center bg-slate-900 border border-slate-700 rounded-xl px-2 py-1.5 text-xs text-white focus-within:border-cyan-400 h-[32px]">
+                  <span className="text-slate-500 font-semibold select-none pr-0.5 whitespace-nowrap flex-shrink-0">I.F. 0901018</span>
+                  <input
+                    type="text"
+                    maxLength={2}
+                    value={expedienteYear}
+                    onChange={(e) => setExpedienteYear(e.target.value.replace(/\D/g, ""))}
+                    className="bg-transparent w-6 focus:outline-none font-bold text-center text-cyan-300 mr-0.5 flex-shrink-0"
+                    title="Año (2 dígitos)"
+                  />
+                  <input
+                    type="text"
+                    maxLength={6}
+                    value={expedienteSeq}
+                    onChange={(e) => setExpedienteSeq(e.target.value.replace(/\D/g, ""))}
+                    placeholder="110865"
+                    className="bg-transparent w-14 focus:outline-none font-bold text-cyan-300 mr-1 flex-shrink-0"
+                  />
+                  <span className="text-slate-500 font-bold select-none mr-0.5 whitespace-nowrap flex-shrink-0">(</span>
+                  <input
+                    type="text"
+                    maxLength={4}
+                    value={largoPrefix}
+                    onChange={(e) => setLargoPrefix(e.target.value.replace(/\D/g, ""))}
+                    className="bg-transparent w-7 focus:outline-none font-bold text-center text-cyan-300 mr-0.5 flex-shrink-0"
+                    title="Prefijo (e.g. 09)"
+                  />
+                  <input
+                    type="text"
+                    maxLength={12}
+                    value={largoSeq}
+                    onChange={(e) => setLargoSeq(e.target.value.replace(/\D/g, ""))}
+                    placeholder="281202502378"
+                    className={`bg-transparent flex-1 focus:outline-none font-bold min-w-[80px] ${isDuplicate ? "text-red-500" : "text-cyan-300"}`}
+                  />
+                  <span className="text-slate-500 font-bold select-none whitespace-nowrap flex-shrink-0">)</span>
+                </div>
+                {isDuplicate && (
+                  <span className="text-[8px] text-red-400 font-bold uppercase mt-1 absolute -bottom-3.5 right-0">⚠️ Duplicado</span>
+                )}
+              </div>
+            )}
+
+            {expedienteType === "acto" && (
+              <div className="flex flex-col gap-1 w-[400px] relative">
+                <label className="text-[9px] font-bold text-slate-400 tracking-wider uppercase">N° Expediente (Acto)</label>
+                <div className="flex items-center bg-slate-900 border border-slate-700 rounded-xl px-2 py-1.5 text-xs text-white focus-within:border-cyan-400 h-[32px]">
+                  <span className="text-slate-500 font-semibold select-none pr-1 whitespace-nowrap flex-shrink-0">Acto Administrativo No.</span>
+                  <input
+                    type="text"
+                    maxLength={5}
+                    value={actoNumber}
+                    onChange={(e) => setActoNumber(e.target.value.replace(/\D/g, ""))}
+                    placeholder="37189"
+                    className="bg-transparent w-11 focus:outline-none font-bold text-center text-cyan-300 mr-1 flex-shrink-0"
+                    title="Número (5 dígitos)"
+                  />
+                  <span className="text-slate-500 font-semibold select-none mr-1 whitespace-nowrap flex-shrink-0">-AA-</span>
+                  <input
+                    type="text"
+                    maxLength={2}
+                    value={actoLetters}
+                    onChange={(e) => setActoLetters(e.target.value.toUpperCase())}
+                    placeholder="OT"
+                    className="bg-transparent w-6 focus:outline-none font-bold text-center text-cyan-300 mr-1 uppercase flex-shrink-0"
+                    title="Letras (e.g. OT, RI)"
+                  />
+                  <span className="text-slate-500 font-semibold select-none mr-1 whitespace-nowrap flex-shrink-0">-</span>
+                  <input
+                    type="text"
+                    value={actoFreeText}
+                    onChange={(e) => setActoFreeText(e.target.value.toUpperCase())}
+                    placeholder="212-2025"
+                    className={`bg-transparent flex-1 focus:outline-none font-bold min-w-[80px] ${isDuplicate ? "text-red-500" : "text-cyan-300"}`}
+                  />
+                </div>
+                {isDuplicate && (
+                  <span className="text-[8px] text-red-400 font-bold uppercase mt-1 absolute -bottom-3.5 right-0">⚠️ Duplicado</span>
+                )}
+              </div>
+            )}
+
             {/* Fecha Apertura */}
-            <div className="flex flex-col gap-1 w-64">
+            <div className="flex flex-col gap-1 w-[164px]">
               <label className="text-[9px] font-bold text-slate-400 tracking-wider uppercase">Fecha Apertura</label>
-              <div className="grid grid-cols-3 gap-1">
+              <div className="flex gap-1 h-[32px]">
                 <input
                   type="text"
                   maxLength={4}
                   value={aperturaYear}
                   onChange={(e) => setAperturaYear(e.target.value.replace(/\D/g, ""))}
                   placeholder="AAAA"
-                  className="bg-slate-900 border border-slate-700 rounded-xl p-1.5 text-[11px] text-white outline-none w-full text-center font-semibold"
+                  className="bg-slate-900 border border-slate-700 rounded-xl p-1.5 text-[11px] text-white outline-none w-14 text-center font-semibold"
                 />
-                <select value={aperturaMonth} onChange={(e) => setAperturaMonth(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl p-1.5 text-[11px] text-white outline-none w-full text-center font-semibold">
+                <select value={aperturaMonth} onChange={(e) => setAperturaMonth(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl p-1.5 text-[11px] text-white outline-none w-14 text-center font-semibold cursor-pointer">
                   {MONTH_OPTIONS.map((m) => <option key={m.value} value={m.value}>{m.value}</option>)}
                 </select>
                 <input
@@ -1157,24 +1336,24 @@ export default function ArchivoPropiedadesModule() {
                   value={aperturaDay}
                   onChange={(e) => setAperturaDay(e.target.value.replace(/\D/g, ""))}
                   placeholder="DD"
-                  className="bg-slate-900 border border-slate-700 rounded-xl p-1.5 text-[11px] text-white outline-none w-full text-center font-semibold"
+                  className="bg-slate-900 border border-slate-700 rounded-xl p-1.5 text-[11px] text-white outline-none w-10 text-center font-semibold"
                 />
               </div>
             </div>
 
             {/* Fecha Cierre */}
-            <div className="flex flex-col gap-1 w-64">
+            <div className="flex flex-col gap-1 w-[164px]">
               <label className="text-[9px] font-bold text-slate-400 tracking-wider uppercase">Fecha Cierre</label>
-              <div className="grid grid-cols-3 gap-1">
+              <div className="flex gap-1 h-[32px]">
                 <input
                   type="text"
                   maxLength={4}
                   value={cierreYear}
                   onChange={(e) => setCierreYear(e.target.value.replace(/\D/g, ""))}
                   placeholder="AAAA"
-                  className="bg-slate-900 border border-slate-700 rounded-xl p-1.5 text-[11px] text-white outline-none w-full text-center font-semibold"
+                  className="bg-slate-900 border border-slate-700 rounded-xl p-1.5 text-[11px] text-white outline-none w-14 text-center font-semibold"
                 />
-                <select value={cierreMonth} onChange={(e) => setCierreMonth(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl p-1.5 text-[11px] text-white outline-none w-full text-center font-semibold">
+                <select value={cierreMonth} onChange={(e) => setCierreMonth(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl p-1.5 text-[11px] text-white outline-none w-14 text-center font-semibold cursor-pointer">
                   {MONTH_OPTIONS.map((m) => <option key={m.value} value={m.value}>{m.value}</option>)}
                 </select>
                 <input
@@ -1183,7 +1362,7 @@ export default function ArchivoPropiedadesModule() {
                   value={cierreDay}
                   onChange={(e) => setCierreDay(e.target.value.replace(/\D/g, ""))}
                   placeholder="DD"
-                  className="bg-slate-900 border border-slate-700 rounded-xl p-1.5 text-[11px] text-white outline-none w-full text-center font-semibold"
+                  className="bg-slate-900 border border-slate-700 rounded-xl p-1.5 text-[11px] text-white outline-none w-10 text-center font-semibold"
                 />
               </div>
             </div>
@@ -1299,12 +1478,6 @@ export default function ArchivoPropiedadesModule() {
                   </div>
                 </div>
 
-                {/* Preview of Description */}
-                <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 mt-2">
-                  <span className="text-[9px] text-slate-500 font-bold uppercase block mb-1">Vista Previa Descripción</span>
-                  <p className="text-xs text-cyan-200 font-semibold break-all leading-normal">{finalDescripcion}</p>
-                </div>
-
                 {/* Fojas & Submit Row */}
                 <div className="flex items-end gap-4 mt-2 pt-2 border-t border-slate-800">
                   {/* Fojas */}
@@ -1326,6 +1499,21 @@ export default function ArchivoPropiedadesModule() {
                   >
                     {saving ? "Guardando..." : "Guardar Registro"}
                   </button>
+                </div>
+
+                {/* Previews Row */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 pt-4 border-t border-slate-800">
+                  {/* Preview N° Expediente */}
+                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 shadow-inner">
+                    <span className="text-[9px] text-slate-500 font-bold uppercase block mb-1">N° Expediente</span>
+                    <p className={`text-xs font-semibold break-all leading-normal ${isDuplicate ? "text-red-400" : "text-cyan-200"}`}>{finalExpediente || "-"}</p>
+                  </div>
+
+                  {/* Preview Descripción */}
+                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 shadow-inner">
+                    <span className="text-[9px] text-slate-500 font-bold uppercase block mb-1">Vista Previa Descripción</span>
+                    <p className="text-xs text-cyan-200 font-semibold break-all leading-normal">{finalDescripcion}</p>
+                  </div>
                 </div>
               </div>
             </div>
