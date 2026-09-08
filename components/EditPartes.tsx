@@ -30,6 +30,16 @@ const normalizeDetenidosForSave = (value: string): string =>
     .replace(/\s+/g, " ")
     .trim();
 
+const getEtiquetaDetenidos = (detenidosStr: string): string => {
+  const limpio = detenidosStr.trim();
+  if (!limpio) return "DETENIDO";
+  const personas = limpio.split(",").map((p) => p.trim()).filter(Boolean);
+  if (personas.length > 1) return "DETENIDOS";
+  const palabras = limpio.split(/\s+/).filter(Boolean);
+  if (palabras.length > 4) return "DETENIDOS";
+  return "DETENIDO";
+};
+
 const parseIsoDateParts = (value?: string) => {
   const match = String(value || "").trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) return { year: "", month: "", day: "" };
@@ -50,7 +60,7 @@ const parseDescripcionParts = (descripcion?: string) => {
     }
   }
 
-  const matchDetenidos = text.match(/DETENIDO\(S\):\s*([^;]+)(?:;|$)/i) || text.match(/DETENIDOS:\s*([^;]+)(?:;|$)/i);
+  const matchDetenidos = text.match(/DETENIDO(?:\(S\)|S)?:\s*([^;]+)(?:;|$)/i);
   const matchDelito = text.match(/DELITO:\s*(.+)$/i);
 
   return {
@@ -201,7 +211,8 @@ export default function EditPartes({ sourceTable = "PARTES" }: EditPartesProps) 
     const codigoPPFull = `PP-${anioRegistro}${mesProceso}${diaCierre.padStart(2, "0")}${ppUltimos10}`;
     const detenidosNormalizados = normalizeDetenidosForSave(detenidos);
     const delitoNormalizado = normalizeUpper(delito).trim();
-    const descFinal = `${codigoPPFull}; DETENIDO(S): ${detenidosNormalizados}; DELITO: ${delitoNormalizado}`;
+    const etiquetaDetenido = getEtiquetaDetenidos(detenidos);
+    const descFinal = `${codigoPPFull}; ${etiquetaDetenido}: ${detenidosNormalizados}; DELITO: ${delitoNormalizado}`;
 
     const payload = {
       n_caja: nCaja,
@@ -465,14 +476,6 @@ export default function EditPartes({ sourceTable = "PARTES" }: EditPartesProps) 
                 />
               </div>
             </div>
-          </div>
-
-          {/* VISTA PREVIA DE LA DESCRIPCIÓN RESULTANTE */}
-          <div className="bg-black/40 p-2.5 rounded-xl border border-white/5 space-y-1">
-            <span className="text-[8px] font-bold text-indigo-400 uppercase tracking-widest">Vista Previa Descripción:</span>
-            <p className="text-[10px] font-mono text-white/80 break-all leading-tight">
-              PP-{normalizeYearInput(anio)}{mesProceso}{diaCierre.padStart(2, "0")}{ppUltimos10}; DETENIDO(S): {normalizeDetenidosForSave(detenidos)}; DELITO: {normalizeUpper(delito).trim()}
-            </p>
           </div>
 
           <div className="flex gap-2 pt-2">

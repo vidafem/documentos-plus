@@ -21,6 +21,16 @@ const normalizeDetenidosForSave = (value: string): string =>
     .replace(/\s+/g, " ")
     .trim();
 
+const getEtiquetaDetenidos = (detenidosStr: string): string => {
+  const limpio = detenidosStr.trim();
+  if (!limpio) return "DETENIDO";
+  const personas = limpio.split(",").map((p) => p.trim()).filter(Boolean);
+  if (personas.length > 1) return "DETENIDOS";
+  const palabras = limpio.split(/\s+/).filter(Boolean);
+  if (palabras.length > 4) return "DETENIDOS";
+  return "DETENIDO";
+};
+
 export default function FormPartes() {
   const COL_DELITO_CANDIDATAS = [
     "DELITO_TIPIFICADO_EN_DELEGACION",
@@ -207,7 +217,8 @@ export default function FormPartes() {
     const codigoPPFull = `PP-${anioRegistro}${mesProceso}${diaCierre.padStart(2, '0')}${ppUltimos10}`;
     const detenidosNormalizados = normalizeDetenidosForSave(detenidos);
     const delitoNormalizado = normalizeUpper(delito).trim();
-    const descFinal = `${codigoPPFull}; DETENIDO(S): ${detenidosNormalizados}; DELITO: ${delitoNormalizado}`;
+    const etiquetaDetenido = getEtiquetaDetenidos(detenidos);
+    const descFinal = `${codigoPPFull}; ${etiquetaDetenido}: ${detenidosNormalizados}; DELITO: ${delitoNormalizado}`;
 
     const registro = {
       expediente: expedienteFormateado,
