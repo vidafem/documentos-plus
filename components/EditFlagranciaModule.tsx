@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabaseClient";
 import Notification from "./Notification";
 import ConfirmModal from "./ConfirmModal";
 import FormDelegacionesDiariasEdit from "./FormDelegacionesDiariasEdit";
+import { useRecordLock } from "@/lib/useRecordLock";
 
 type FlagranciaRow = Record<string, string | number | null> & { id?: number | string };
 
@@ -49,6 +50,7 @@ export default function EditFlagranciaModule() {
   const [notification, setNotification] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
   const [itemToDelete, setItemToDelete] = useState<number | string | null>(null);
   const searchSeqRef = useRef(0);
+  const { isLockedByOther, requestLock, releaseLock } = useRecordLock();
 
   const _now = new Date();
   const HOY_ANIO = String(_now.getFullYear());
@@ -112,6 +114,15 @@ export default function EditFlagranciaModule() {
       return;
     }
 
+    const lock = await requestLock("FLAGRANCIA", id);
+    if (!lock.ok) {
+      setNotification({
+        message: lock.message || "Este registro ya está siendo editado por otro usuario.",
+        type: "error",
+      });
+      return;
+    }
+
     const { data, error } = await supabase
       .from("FLAGRANCIA")
       .select("*")
@@ -119,6 +130,7 @@ export default function EditFlagranciaModule() {
       .single();
 
     if (error || !data) {
+      void releaseLock();
       setNotification({ message: `No se pudo cargar el registro: ${error?.message || "sin datos"}`, type: "error" });
       return;
     }
@@ -365,6 +377,7 @@ export default function EditFlagranciaModule() {
     } else {
       setNotification({ message: "Registro eliminado con exito", type: "success" });
       if (editando?.id === itemToDelete) {
+        void releaseLock();
         setEditando(null);
       }
       handleSearch(busqueda);
@@ -405,8 +418,12 @@ export default function EditFlagranciaModule() {
             mode="edit"
             editId={editando.id ?? null}
             initialRecord={editando}
-            onCancelEdit={() => setEditando(null)}
+            onCancelEdit={() => {
+              void releaseLock();
+              setEditando(null);
+            }}
             onSavedEdit={() => {
+              void releaseLock();
               setEditando(null);
               setNotification({ message: "Registro actualizado en FLAGRANCIA", type: "success" });
               handleSearch(busqueda);
@@ -423,39 +440,59 @@ export default function EditFlagranciaModule() {
             className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-xs text-white outline-none focus:border-indigo-500"
           />
           <div className="space-y-3">
-            {resultados.map((item) => (
-              <div key={String(item.id ?? item["IF"])} className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 md:p-6 bg-white/5 rounded-2xl border border-white/5 hover:border-indigo-500/30 transition-colors">
-                <div className="flex flex-col gap-2 overflow-hidden">
-                  <span className="text-sm font-bold text-indigo-300 font-mono tracking-wide">{String(item["IF"] || "SIN IF")}</span>
-                  <span className="text-sm font-semibold text-white">{String(item["DETENIDO"] || "—")}</span>
-                  {item["DELITO_DESAGREGACION_POLICIA_JUDICIAL"] && (
-                    <span className="text-xs text-amber-300/90">{String(item["DELITO_DESAGREGACION_POLICIA_JUDICIAL"])}</span>
-                  )}
-                  <div className="flex flex-wrap gap-x-4 gap-y-0.5">
-                    {item["APELLIDOS_Y_NOMBRES_DEL_FISCAL"] && (
-                      <span className="text-xs text-white/60">
-                        <span className="text-white/30">Fiscal: </span>{String(item["APELLIDOS_Y_NOMBRES_DEL_FISCAL"])}
-                      </span>
+            {resultados.map((item) => {
+              const estaBloqueado = isLockedByOther("FLAGRANCIA", item.id);
+              return (
+                <div key={String(item.id ?? item["IF"])} className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 md:p-6 bg-white/5 rounded-2xl border border-white/5 hover:border-indigo-500/30 transition-colors">
+                  <div className="flex flex-col gap-2 overflow-hidden">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-indigo-300 font-mono tracking-wide">{String(item["IF"] || "SIN IF")}</span>
+                      {estaBloqueado && (
+                        <span className="bg-amber-500/20 border border-amber-400/30 text-amber-300 text-[8px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                          🔒 En edición por otro usuario
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-sm font-semibold text-white">{String(item["DETENIDO"] || "—")}</span>
+                    {item["DELITO_DESAGREGACION_POLICIA_JUDICIAL"] && (
+                      <span className="text-xs text-amber-300/90">{String(item["DELITO_DESAGREGACION_POLICIA_JUDICIAL"])}</span>
                     )}
-                    {item["Nº_DE_OFICIO_CON_LA_QUE_RECIBE_LA_DILIGENCIA_EL_AGENTE"] && (
-                      <span className="text-xs text-white/60 font-mono">
-                        <span className="text-white/30">Oficio: </span>{String(item["Nº_DE_OFICIO_CON_LA_QUE_RECIBE_LA_DILIGENCIA_EL_AGENTE"])}
-                      </span>
-                    )}
+                    <div className="flex flex-wrap gap-x-4 gap-y-0.5">
+                      {item["APELLIDOS_Y_NOMBRES_DEL_FISCAL"] && (
+                        <span className="text-xs text-white/60">
+                          <span className="text-white/30">Fiscal: </span>{String(item["APELLIDOS_Y_NOMBRES_DEL_FISCAL"])}
+                        </span>
+                      )}
+                      {item["Nº_DE_OFICIO_CON_LA_QUE_RECIBE_LA_DILIGENCIA_EL_AGENTE"] && (
+                        <span className="text-xs text-white/60 font-mono">
+                          <span className="text-white/30">Oficio: </span>{String(item["Nº_DE_OFICIO_CON_LA_QUE_RECIBE_LA_DILIGENCIA_EL_AGENTE"])}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <button
+                      onClick={() => void abrirEdicion(item)}
+                      className={`px-4 py-2.5 rounded-lg text-xs font-bold uppercase transition-all ${
+                        estaBloqueado
+                          ? "bg-amber-500/10 text-amber-300 border border-amber-500/30 hover:bg-amber-500/20"
+                          : "bg-white/10 hover:bg-white/20 text-white"
+                      }`}
+                      title={estaBloqueado ? "Este registro está abierto por otro usuario" : "Editar"}
+                    >
+                      {estaBloqueado ? "🔒 Ocupado" : "Editar"}
+                    </button>
+                    <button
+                      onClick={() => void abrirCumplir(item)}
+                      className={`px-4 py-2.5 rounded-lg text-xs font-bold uppercase ${String(item["CUMPLIMIENTO_TOTAL"] || "").toUpperCase() === "SI" ? "bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20" : "bg-amber-500/10 text-amber-300 hover:bg-amber-500/20"}`}
+                    >
+                      {String(item["CUMPLIMIENTO_TOTAL"] || "").toUpperCase() === "SI" ? "Cumplido" : "No cumplido"}
+                    </button>
+                    <button onClick={() => requestEliminar(item.id)} className="px-4 py-2.5 bg-red-500/10 text-red-400 rounded-lg text-xs font-bold uppercase hover:bg-red-500/20">Eliminar</button>
                   </div>
                 </div>
-                <div className="flex gap-2 shrink-0">
-                  <button onClick={() => void abrirEdicion(item)} className="px-4 py-2.5 bg-white/10 rounded-lg text-xs font-bold uppercase hover:bg-white/20 text-white">Editar</button>
-                  <button
-                    onClick={() => void abrirCumplir(item)}
-                    className={`px-4 py-2.5 rounded-lg text-xs font-bold uppercase ${String(item["CUMPLIMIENTO_TOTAL"] || "").toUpperCase() === "SI" ? "bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20" : "bg-amber-500/10 text-amber-300 hover:bg-amber-500/20"}`}
-                  >
-                    {String(item["CUMPLIMIENTO_TOTAL"] || "").toUpperCase() === "SI" ? "Cumplido" : "No cumplido"}
-                  </button>
-                  <button onClick={() => requestEliminar(item.id)} className="px-4 py-2.5 bg-red-500/10 text-red-400 rounded-lg text-xs font-bold uppercase hover:bg-red-500/20">Eliminar</button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

@@ -3,6 +3,7 @@ import { useEffect, useState, type FormEvent, type KeyboardEvent } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import Notification from "./Notification";
 import ConfirmModal from "./ConfirmModal";
+import { useRecordLock } from "@/lib/useRecordLock";
 
 type DelegacionViejaRow = {
   id: string | number;
@@ -180,6 +181,7 @@ export default function EditModule() {
   const [itemToDelete, setItemToDelete] = useState<string | number | null>(null);
   const [pdfTemplate, setPdfTemplate] = useState("");
   const [expUnicidad, setExpUnicidad] = useState<"idle" | "unique" | "duplicate">("idle");
+  const { isLockedByOther, requestLock, releaseLock } = useRecordLock();
 
   useEffect(() => {
     let active = true;
@@ -253,7 +255,16 @@ export default function EditModule() {
     setResultados((data || []) as DelegacionViejaRow[]);
   };
 
-  const startEdit = (item: DelegacionViejaRow) => {
+  const startEdit = async (item: DelegacionViejaRow) => {
+    const lock = await requestLock("delegaciones_viejas", item.id);
+    if (!lock.ok) {
+      setNotification({
+        message: lock.message || "Este registro ya está siendo editado por otro usuario.",
+        type: "error",
+      });
+      return;
+    }
+
     const apertura = parseIsoDateParts(String(item.fecha_apertura || ""));
     const cierre = parseIsoDateParts(String(item.fecha_cierre || ""));
     const parsedDescripcion = parseDescripcion(String(item.descripcion || ""));
@@ -285,6 +296,11 @@ export default function EditModule() {
       sospechosos: parsedDescripcion.sospechosos,
     });
     setSugerenciasDelito([]);
+  };
+
+  const cancelEdit = () => {
+    void releaseLock();
+    setEditando(null);
   };
 
   const updateEditForm = (patch: Partial<EditFormState>) => {
@@ -372,6 +388,10 @@ export default function EditModule() {
       setNotification({ message: "Error al eliminar", type: "error" });
     } else {
       setNotification({ message: "Registro eliminado con éxito", type: "success" });
+      if (editando?.id === itemToDelete) {
+        void releaseLock();
+        setEditando(null);
+      }
       handleSearch(busqueda);
     }
     setItemToDelete(null);
@@ -408,6 +428,7 @@ export default function EditModule() {
       setNotification({ message: `Error al actualizar: ${error.message}`, type: "error" });
     } else {
       setNotification({ message: "Registro actualizado", type: "success" });
+      void releaseLock();
       setEditando(null);
       handleSearch(busqueda);
     }
@@ -587,7 +608,7 @@ ${templateFilled}
           </div>
 
           <div className="flex gap-2 justify-end pt-2">
-            <button type="button" onClick={() => setEditando(null)} className="px-6 bg-white/10 rounded-xl text-xs uppercase text-white h-10">Cancelar</button>
+            <button type="button" onClick={cancelEdit} className="px-6 bg-white/10 rounded-xl text-xs uppercase text-white h-10">Cancelar</button>
             <button type="submit" disabled={isUpdating} className="px-10 rounded-2xl font-black text-[11px] uppercase shadow-2xl transition-all active:scale-95 tracking-tighter flex items-center gap-2 h-10 bg-indigo-600 hover:bg-indigo-500 text-white disabled:bg-white/20 disabled:text-white/50 disabled:cursor-wait">
               {isUpdating ? "Procesando..." : "Actualizar Registro"}
             </button>
@@ -597,19 +618,39 @@ ${templateFilled}
         <div className="bg-white/5 rounded-3xl p-6 border border-white/5 space-y-4">
           <input type="text" value={busqueda} onChange={(e) => handleSearch(e.target.value)} placeholder="🔍 Buscar por expediente o descripción..." className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-xs text-white outline-none focus:border-indigo-500" />
           <div className="space-y-2">
-            {resultados.map((item) => (
-              <div key={item.id} className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5 group hover:border-indigo-500/20">
-                <div className="flex flex-col overflow-hidden">
-                  <span className="text-[10px] font-bold text-indigo-300 font-mono">{item.expediente}</span>
-                  <span className="text-[9px] text-white/40 truncate max-w-[200px] md:max-w-[400px]">{item.descripcion}</span>
+            {resultados.map((item) => {
+              const estaBloqueado = isLockedByOther("delegaciones_viejas", item.id);
+              return (
+                <div key={item.id} className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5 group hover:border-indigo-500/20">
+                  <div className="flex flex-col overflow-hidden">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold text-indigo-300 font-mono">{item.expediente}</span>
+                      {estaBloqueado && (
+                        <span className="bg-amber-500/20 border border-amber-400/30 text-amber-300 text-[8px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                          🔒 En edición por otro usuario
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[9px] text-white/40 truncate max-w-[200px] md:max-w-[400px]">{item.descripcion}</span>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <button
+                      onClick={() => void startEdit(item)}
+                      className={`px-3 py-2 rounded-lg text-[9px] font-bold uppercase transition-all ${
+                        estaBloqueado
+                          ? "bg-amber-500/10 text-amber-300 border border-amber-500/30 hover:bg-amber-500/20"
+                          : "bg-white/10 hover:bg-white/20 text-white"
+                      }`}
+                      title={estaBloqueado ? "Este registro está abierto por otro usuario" : "Editar"}
+                    >
+                      {estaBloqueado ? "🔒 Ocupado" : "Editar"}
+                    </button>
+                    <button onClick={() => requestEliminar(item.id)} className="px-3 py-2 bg-red-500/10 text-red-400 rounded-lg text-[9px] font-bold uppercase hover:bg-red-500/20">Eliminar</button>
+                    <button onClick={() => imprimirFilaPdf(item)} className="px-3 py-2 bg-indigo-600 rounded-lg text-[9px] font-bold uppercase text-white">Imprimir PDF</button>
+                  </div>
                 </div>
-                <div className="flex gap-2 shrink-0">
-                  <button onClick={() => startEdit(item)} className="px-3 py-2 bg-white/10 rounded-lg text-[9px] font-bold uppercase hover:bg-white/20 text-white">Editar</button>
-                  <button onClick={() => requestEliminar(item.id)} className="px-3 py-2 bg-red-500/10 text-red-400 rounded-lg text-[9px] font-bold uppercase hover:bg-red-500/20">Eliminar</button>
-                  <button onClick={() => imprimirFilaPdf(item)} className="px-3 py-2 bg-indigo-600 rounded-lg text-[9px] font-bold uppercase text-white">Imprimir PDF</button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

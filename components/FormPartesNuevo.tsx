@@ -191,7 +191,22 @@ export default function FormPartesNuevo() {
       return;
     }
 
-    const expedienteFormateado = formatExpediente(nExpediente, anioRegistro);
+    // Consulta fresca a la base de datos para asegurar correlativo exacto
+    const { data: latestData } = await supabase
+      .from("PARTES")
+      .select("expediente")
+      .like("expediente", `%-${anioRegistro}`)
+      .order("created_at", { ascending: false })
+      .limit(5000);
+
+    const maxSequence = (latestData || []).reduce((acc, row) => {
+      const value = String(row.expediente || "");
+      const seq = getSequenceFromExpediente(value, anioRegistro);
+      return seq > acc ? seq : acc;
+    }, 0);
+
+    const proximoExpediente = maxSequence + 1;
+    const expedienteFormateado = formatExpediente(proximoExpediente, anioRegistro);
     const codigoPPFull = `PP-${anioRegistro}${mesProceso}${diaCierre.padStart(2, "0")}${ppUltimos10}`;
     const detenidosNormalizados = normalizeDetenidosForSave(detenidos);
     const delitoNormalizado = normalizeUpper(delito).trim();
@@ -216,7 +231,7 @@ export default function FormPartesNuevo() {
       setNotification({ message: "Error al guardar el registro", type: "error" });
     } else {
       setNotification({ message: "Registro Guardado", type: "success" });
-      setNExpediente((prev) => prev + 1);
+      setNExpediente(proximoExpediente + 1);
       setPpUltimos10("");
       setDetenidos("");
       setDelito("");

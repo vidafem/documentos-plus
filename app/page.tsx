@@ -109,7 +109,7 @@ export default function Home() {
       const isAllowedProp = nextEmail === "mmontielpj@gmail.com";
 
       if (nextSession && !isAllowedAdmin && !isAllowedProp) {
-        void supabase.auth.signOut();
+        void supabase.auth.signOut({ scope: "local" });
         setSession(null);
         setNotification({ message: "Este usuario no tiene permiso para ingresar.", type: "error" });
         setAuthChecking(false);
@@ -174,7 +174,7 @@ export default function Home() {
   };
 
   const handleSignOut = async () => {
-    const { error } = await supabase.auth.signOut();
+    const { error } = await supabase.auth.signOut({ scope: "local" });
     if (error) {
       setNotification({ message: `No se pudo cerrar sesión: ${error.message}`, type: "error" });
       return;
