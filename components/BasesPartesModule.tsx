@@ -216,15 +216,11 @@ const sortRowsByFechaAndExpediente = (rows: GenericRow[]): GenericRow[] => {
       return fechaA.localeCompare(fechaB);
     }
 
-    const expA = parseExpediente(a.expediente);
-    const expB = parseExpediente(b.expediente);
+    const aperA = normalizeDate(toText(a.fecha_apertura));
+    const aperB = normalizeDate(toText(b.fecha_apertura));
 
-    if (expA.year !== expB.year) {
-      return expA.year - expB.year;
-    }
-
-    if (expA.seq !== expB.seq) {
-      return expA.seq - expB.seq;
+    if (aperA !== aperB) {
+      return aperA.localeCompare(aperB);
     }
 
     return toText(a.id).localeCompare(toText(b.id));
@@ -292,6 +288,8 @@ export default function BasesPartesModule({ sourceTable, title }: BasesPartesMod
   const [campoMasivo, setCampoMasivo] = useState<"n_caja" | "n_tomo">("n_caja");
   const [valorMasivo, setValorMasivo] = useState("");
   const [actualizandoMasivo, setActualizandoMasivo] = useState(false);
+  const [showPromptModal, setShowPromptModal] = useState(true);
+  const [isUpdatingMatrix, setIsUpdatingMatrix] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -454,6 +452,127 @@ export default function BasesPartesModule({ sourceTable, title }: BasesPartesMod
   const resetResultados = () => {
     setRows([]);
     setFiltroAplicado(false);
+  };
+
+  const ejecutarActualizacionMatriz = async () => {
+    setIsUpdatingMatrix(true);
+    try {
+      const allRows: GenericRow[] = [];
+      const PAGE_SIZE = 1000;
+      let from = 0;
+
+      while (true) {
+        const to = from + PAGE_SIZE - 1;
+        const { data, error } = await supabase
+          .from(sourceTable)
+          .select("*")
+          .order("fecha_cierre", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, to);
+
+        if (error) throw new Error(error.message);
+        const chunk = (data || []) as GenericRow[];
+        allRows.push(...chunk);
+        if (chunk.length < PAGE_SIZE) break;
+        from += PAGE_SIZE;
+      }
+
+      if (allRows.length === 0) {
+        setNotification({ message: "No hay registros para actualizar.", type: "info" });
+        setIsUpdatingMatrix(false);
+        setShowPromptModal(false);
+        return;
+      }
+
+      const rowsByYear = new Map<string, GenericRow[]>();
+
+      allRows.forEach((row) => {
+        const expParsed = parseExpediente(row.expediente);
+        let year = expParsed.year !== Number.MAX_SAFE_INTEGER ? String(expParsed.year) : "";
+        if (!year) {
+          const cierreNorm = normalizeDate(toText(row.fecha_cierre));
+          year = cierreNorm.split("-")[0] || "";
+        }
+        if (!year) {
+          year = String(new Date().getFullYear());
+        }
+
+        if (!rowsByYear.has(year)) {
+          rowsByYear.set(year, []);
+        }
+        rowsByYear.get(year)!.push(row);
+      });
+
+      const updatesToRun: Array<{ id: string; nuevoExpediente: string }> = [];
+
+      rowsByYear.forEach((yearRows, year) => {
+        // Orden establecido por la fecha de cierre
+        yearRows.sort((a, b) => {
+          const fechaA = normalizeDate(toText(a.fecha_cierre));
+          const fechaB = normalizeDate(toText(b.fecha_cierre));
+          if (fechaA !== fechaB) {
+            return fechaA.localeCompare(fechaB);
+          }
+          const aperA = normalizeDate(toText(a.fecha_apertura));
+          const aperB = normalizeDate(toText(b.fecha_apertura));
+          if (aperA !== aperB) {
+            return aperA.localeCompare(aperB);
+          }
+          return toText(a.id).localeCompare(toText(b.id));
+        });
+
+        // Reemplazar los valores por el orden correspondiente secuencial
+        yearRows.forEach((row, idx) => {
+          const seq = idx + 1;
+          const nuevoExpediente = `${String(seq).padStart(4, "0")}-${year}`;
+          const actualExpediente = toText(row.expediente).trim();
+
+          if (actualExpediente !== nuevoExpediente) {
+            updatesToRun.push({
+              id: toText(row.id),
+              nuevoExpediente,
+            });
+            row.expediente = nuevoExpediente;
+          }
+        });
+      });
+
+      if (updatesToRun.length > 0) {
+        for (const item of updatesToRun) {
+          const { error: updErr } = await supabase
+            .from(sourceTable)
+            .update({ expediente: item.nuevoExpediente })
+            .eq("id", item.id);
+
+          if (updErr) {
+            console.error("Error actualizando expediente:", updErr);
+          }
+        }
+        setNotification({
+          message: `Matriz actualizada con éxito: ${updatesToRun.length} expedientes renumerados secuencialmente.`,
+          type: "success",
+        });
+      } else {
+        setNotification({
+          message: "La matriz ya se encuentra con la numeración secuencial correspondiente.",
+          type: "info",
+        });
+      }
+
+      if (filtroAplicado) {
+        if (activeOption === "por_mes") {
+          void filtrarPorMes();
+        } else {
+          void filtrarTotal();
+        }
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Error desconocido al actualizar matriz.";
+      setNotification({ message: msg, type: "error" });
+    } finally {
+      setIsUpdatingMatrix(false);
+      setShowPromptModal(false);
+    }
   };
 
   const actualizarCampoMasivo = async () => {
@@ -716,7 +835,48 @@ export default function BasesPartesModule({ sourceTable, title }: BasesPartesMod
         >
           Imprimir formato mensual
         </button>
+        <button
+          onClick={() => setShowPromptModal(true)}
+          className="px-4 py-2 rounded-xl text-xs font-bold transition-all bg-amber-600 text-white hover:bg-amber-500 flex items-center gap-1.5"
+        >
+          <span>🔄</span> Actualizar matriz
+        </button>
       </div>
+
+      {showPromptModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-white/20 rounded-3xl p-6 max-w-sm w-full shadow-2xl space-y-6 text-center">
+            {isUpdatingMatrix ? (
+              <div className="py-6 space-y-4">
+                <div className="w-12 h-12 border-4 border-cyan-400 border-t-transparent rounded-full animate-spin mx-auto" />
+                <h3 className="text-base font-bold text-white uppercase tracking-wider">
+                  ACTUALIZANDO MATRIZ...
+                </h3>
+              </div>
+            ) : (
+              <>
+                <h3 className="text-lg font-bold text-white uppercase tracking-wide">
+                  ¿Deseas actualizar la matriz?
+                </h3>
+                <div className="flex justify-center gap-4 pt-2">
+                  <button
+                    onClick={ejecutarActualizacionMatriz}
+                    className="px-6 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs uppercase rounded-xl transition-all shadow-lg cursor-pointer"
+                  >
+                    Sí
+                  </button>
+                  <button
+                    onClick={() => setShowPromptModal(false)}
+                    className="px-6 py-2.5 bg-white/10 hover:bg-white/20 text-white/70 font-bold text-xs uppercase rounded-xl transition-all cursor-pointer"
+                  >
+                    No
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {activeOption === "por_mes" && (
         <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/5 p-4 space-y-4">

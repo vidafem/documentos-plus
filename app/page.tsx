@@ -105,10 +105,11 @@ export default function Home() {
       if (!isMounted) return;
 
       const nextEmail = nextSession?.user?.email?.toLowerCase() || "";
-      const isAllowedAdmin = allowedEmail && nextEmail === allowedEmail;
+      const hasConfiguredAllowedEmail = Boolean(allowedEmail && allowedEmail !== "tu-correo@dominio.com");
+      const isAllowedAdmin = hasConfiguredAllowedEmail ? nextEmail === allowedEmail : true;
       const isAllowedProp = nextEmail === "mmontielpj@gmail.com";
 
-      if (nextSession && !isAllowedAdmin && !isAllowedProp) {
+      if (hasConfiguredAllowedEmail && nextSession && !isAllowedAdmin && !isAllowedProp) {
         void supabase.auth.signOut({ scope: "local" });
         setSession(null);
         setNotification({ message: "Este usuario no tiene permiso para ingresar.", type: "error" });
@@ -141,10 +142,11 @@ export default function Home() {
     }
 
     const inputEmail = email.trim().toLowerCase();
-    const isAllowedAdmin = allowedEmail && inputEmail === allowedEmail;
+    const hasConfiguredAllowedEmail = Boolean(allowedEmail && allowedEmail !== "tu-correo@dominio.com");
+    const isAllowedAdmin = hasConfiguredAllowedEmail ? inputEmail === allowedEmail : true;
     const isAllowedProp = inputEmail === "mmontielpj@gmail.com";
 
-    if (!isAllowedAdmin && !isAllowedProp) {
+    if (hasConfiguredAllowedEmail && !isAllowedAdmin && !isAllowedProp) {
       setNotification({ message: "Este correo no está autorizado.", type: "error" });
       return;
     }

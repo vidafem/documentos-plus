@@ -135,6 +135,8 @@ const DELEGACIONES_INSERT_COLUMNS = [
   "NUMERO_DE_DETENIDOS_PRODUCTO_DE_LA_INVESTIGACION",
   "APELLIDOS_Y_NOMBRES_DE_LOS_DETENIDOS_PRODUCTO_DEL_CUMPLIMIENTO_",
   "APELLIDOS_Y_NOMBRES_DE_LAS_PERSONAS_SOSPECHOSAS_QUE_SE_HA_EMITI",
+  "CON_RESULTADOS",
+  "CUMPLE/NO_CUMPLE",
 ] as const;
 
 const RED_IF_FILLED_COLUMNS = new Set([
@@ -144,6 +146,32 @@ const RED_IF_FILLED_COLUMNS = new Set([
   "AGENTE/CUMPLIMIENTO",
   "AÑO_DE_RECEPCION_POR_",
   "AÑO_DE_CUMPLIMIENTO",
+]);
+
+const NUMERIC_COLUMNS = new Set([
+  "ORDEN",
+  "EDAD_(VÍCTIMA)",
+  "PLAZO_OTORGADO_(DIAS)",
+  "VERSIONES_(NUMERO)",
+  "RECONOCIMIENTOS_DE_LUGAR_DE_LOS_HECHOS_(NUMERO)",
+  "No._DE_BOLETAS_SOLICITADAS_A_LA_AUTORIDAD_COMPETENTE",
+  "NUMERO_DE_DETENIDOS_PRODUCTO_DE_LA_INVESTIGACION",
+  "ALLANAMIENTOS_(NUMERO)",
+  "RECUPERACION_DE_BIENES_O_EVIDENCIAS_(NUMERO)",
+  "RECUPERACION_DE_AUTOMOTORES_(NUMERO)",
+  "RECUPERACION_OTROS_(NUMERO)",
+  "PERITAJES_(NUMERO)",
+  "NOTIFICACIONES_(EN_NÚMERO)",
+  "CITACIONES_(EN_NÚMERO)",
+  "TRASLADOS__(EN_NÚMERO)",
+  "AÑO_DE_RECEPCION_POR_",
+  "AÑO_DE_CUMPLIMIENTO",
+]);
+
+const TEXT_ZERO_PRESERVED_COLUMNS = new Set([
+  "_NÚMERO_DELEGACIÓN_FISCAL",
+  "COD._DISTRITO",
+  "NUMERO_DE_PROCESO",
 ]);
 const contarDetenidos = (detenidoStr: string): number => {
   const limpio = detenidoStr.trim();
@@ -260,7 +288,8 @@ const mapFlagranciaToDelegaciones = (
   output["ORDEN"] = toText(row.id ?? index + 1);
   output["MES_DE_INGRESO_DE_DISPOSICIONES_FISCALES"] = toText(row["MES_DE_INGRESO_DE_DISPOSICIONES_FISCALES"]);
   output["FASE_PREPROCESAL_O_PROCESAL"] = toText(row["FECHA_ORIGINAL_DEL_OFICIO"]);
-  output["_NÚMERO_DELEGACIÓN_FISCAL"] = toText(row["IF"]);
+  const rawIf = toText(row["IF"]).trim();
+  output["_NÚMERO_DELEGACIÓN_FISCAL"] = rawIf.startsWith("901018") ? `0${rawIf}` : rawIf;
   output["ZONA_(SEGÚN_SENPLADES)"] = toText(row["ZONA_(SEGÚN_SENPLADES)"]);
   output["PROVINCIA"] = toText(row["PROVINCIA"]);
   output["CANTÓN"] = toText(row["CANTÓN"]);
@@ -296,11 +325,11 @@ const mapFlagranciaToDelegaciones = (
   output["FECHA_DE_RECEPCION_POR_PARTE_AGENTE_INVESTIGADOR"] = toText(row["FECHA_DE_RECEPCION_POR_PARTE_AGENTE_INVESTIGADOR"]);
   output["PLAZO_OTORGADO_(DIAS)"] = "3";
   output["Nª_ART._446_Y_511_COIP._No._1,2,5,6"] = "1,2,5,6";
-  output["QUE_ART._CUMPLIO_DENTRO_DEL_PLAZO?_2,4,6,8,12,14"] = "2,4,6";
   output["CUMPLIMIENTO_PARCIAL"] = toText(row["CUMPLIMIENTO_PARCIAL"]).trim() || "NO";
   output["CUMPLIMIENTO_TOTAL"] = toText(row["CUMPLIMIENTO_TOTAL"]).trim() || "NO";
   output["FECHA_CUMPLIMIENTO_O_DESCARGO_DE_DELEGACION"] = toText(row["EXTRACTO"]);
   const cumplimientoEsSi = normalizeLookupKey(output["CUMPLIMIENTO_TOTAL"]) === "SI";
+  output["QUE_ART._CUMPLIO_DENTRO_DEL_PLAZO?_2,4,6,8,12,14"] = cumplimientoEsSi ? "1,2,5,6" : "";
   const reconocimientosFlag = normalizeLookupKey(row["RECONOCIMIENTOS"]);
   const reconocimientoEsSi = reconocimientosFlag === "SI" || reconocimientosFlag === "1";
   const anioDescargo = getYear(output["FECHA_CUMPLIMIENTO_O_DESCARGO_DE_DELEGACION"]);
@@ -310,6 +339,8 @@ const mapFlagranciaToDelegaciones = (
     : "";
   output["RECONOCIMIENTOS_DE_LUGAR_DE_LOS_HECHOS_(NUMERO)"] = cumplimientoEsSi ? "1" : "";
   output["INFORME_O_DESCARGO"] = cumplimientoEsSi && reconocimientoEsSi ? "INFORME DE CUMPLIMIENTO" : "";
+  output["CON_RESULTADOS"] = !!row.caso_pj ? "SI" : "NO";
+  output["CUMPLE/NO_CUMPLE"] = cumplimientoEsSi ? "SI" : "NO";
 
   const fechaInfraccion = output["FECHA_DE_LA_INFRACIÓN/DELITO"];
   const fechaDelegacion = output["FECHA_DE_LA_DELEGACION"];
@@ -462,6 +493,11 @@ export const syncDelegacionesFromFlagranciaGlobal = async (selectedYearNum: numb
           // Si el switch no está activo, forzamos a vacío para que no queden datos viejos huérfanos
           existingValue = "";
         }
+      } else if (column === "CON_RESULTADOS") {
+        existingValue = !!row.caso_pj ? "SI" : "NO";
+      } else if (column === "CUMPLE/NO_CUMPLE") {
+        const cumplimientoEsSi = normalizeLookupKey(toText(row["CUMPLIMIENTO_TOTAL"])) === "SI";
+        existingValue = cumplimientoEsSi ? "SI" : "NO";
       }
 
       // Regla conservadora: priorizar siempre el dato ya existente para no sobrescribir carga manual.
@@ -798,29 +834,46 @@ export default function DelegacionesFlagranciaModule() {
         const addr = XLSX.utils.encode_cell({ r, c });
         const cell = worksheet[addr] as (XLSX.CellObject & { s?: Record<string, unknown>; z?: string }) | undefined;
         if (cell) {
-          const originalValue = String(cell.v ?? "");
+          const headerName = DELEGACIONES_HEADERS[c];
+          let originalValue = String(cell.v ?? "").trim();
+          if (headerName === "_NÚMERO_DELEGACIÓN_FISCAL" && originalValue.startsWith("901018")) {
+            originalValue = `0${originalValue}`;
+          }
+
           const isDateColumn = dateColIndexes.has(c);
+          const isNumericColumn = NUMERIC_COLUMNS.has(headerName);
+          const isTextPreserved = TEXT_ZERO_PRESERVED_COLUMNS.has(headerName);
           const excelSerial = isDateColumn ? isoDateToExcelSerial(originalValue) : null;
+
+          let horizontalAlign: "left" | "center" | "right" = "left";
 
           if (excelSerial !== null) {
             cell.t = "n";
             cell.v = excelSerial;
             cell.z = "yyyy-mm-dd";
+            horizontalAlign = "center";
+          } else if (!isTextPreserved && isNumericColumn && originalValue !== "" && !isNaN(Number(originalValue))) {
+            cell.t = "n";
+            cell.v = Number(originalValue);
+            cell.z = "#,##0";
+            horizontalAlign = "right";
           } else {
             cell.t = "s";
             cell.v = originalValue;
             cell.z = "@";
+            horizontalAlign = isTextPreserved ? "center" : "left";
           }
 
-          const headerName = DELEGACIONES_HEADERS[c];
-          const shouldPaintRed = RED_IF_FILLED_COLUMNS.has(headerName) && String(cell.v).trim().length > 0;
+          const shouldPaintRed = RED_IF_FILLED_COLUMNS.has(headerName) && originalValue.length > 0;
           cell.s = {
             font: { color: { rgb: shouldPaintRed ? "FFFF0000" : "FF000000" } },
-            alignment: { horizontal: isDateColumn ? "center" : "left", vertical: "center" },
+            alignment: { horizontal: horizontalAlign, vertical: "center" },
           };
         }
       }
     }
+
+    worksheet["!autofilter"] = { ref: worksheet["!ref"] || "A1:A1" };
 
     XLSX.writeFile(workbook, `DELEGACIONES_FLAGRANCIA_DESDE_${selectedYearNum}.xlsx`);
   };

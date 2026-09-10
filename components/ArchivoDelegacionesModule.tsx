@@ -111,7 +111,8 @@ const toNullableInteger = (value: unknown): number | null => {
 const mapFlagranciaToArchDele = (row: GenericRow, fiscalCodByKey: Map<string, string>): Record<string, string | number | null> => {
   const result: Record<string, string | number | null> = {};
 
-  const ifValue = toText(row["IF"]);
+  const rawIf = toText(row["IF"]).trim();
+  const ifValue = rawIf.startsWith("901018") ? `0${rawIf}` : rawIf;
   const unidadFiscalia = toText(row["UNIDAD_ESPECIALIZADA_DE_FISCALIA"]);
   const numFiscalia = extractFiscalNumber(unidadFiscalia);
   const fiscalName = toText(row["APELLIDOS_Y_NOMBRES_DEL_FISCAL"]);
@@ -1160,6 +1161,8 @@ export default function ArchivoDelegacionesModule() {
     const fileSuffix = activeOption === "archivo_por_mes"
       ? `${anioFiltro || "todos"}_${mesFiltro || "todos"}`
       : `${fechaInicioTotal || "inicio"}_${fechaFinTotal || "fin"}`.replace(/-/g, "_");
+
+    worksheet["!autofilter"] = { ref: worksheet["!ref"] || "A1:A1" };
 
     XLSX.writeFile(workbook, `ARCH_DELE_${activeOption}_${fileSuffix}.xlsx`);
   };

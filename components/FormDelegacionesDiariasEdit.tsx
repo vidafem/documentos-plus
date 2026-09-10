@@ -916,36 +916,29 @@ export default function FormDelegacionesDiarias({
     const currentId = mode === "edit" ? editId : newId;
 
     if (!error && currentId) {
+      const cumplimientoEsSi = String(initialRecord?.["CUMPLIMIENTO_TOTAL"] || "").trim().toUpperCase() === "SI";
+      const delePayload: Record<string, string | null> = {
+        ORDEN: String(currentId),
+        CON_RESULTADOS: casoPj ? "SI" : "NO",
+        "CUMPLE/NO_CUMPLE": cumplimientoEsSi ? "SI" : "NO",
+      };
       if (casoPj) {
         const numDetenidos = contarDetenidos(formData.detenido);
-        const { error: deleError } = await supabase
-          .from("DELEGACIONES")
-          .upsert(
-            {
-              ORDEN: String(currentId),
-              NUMERO_DE_DETENIDOS_PRODUCTO_DE_LA_INVESTIGACION: String(numDetenidos),
-              APELLIDOS_Y_NOMBRES_DE_LOS_DETENIDOS_PRODUCTO_DEL_CUMPLIMIENTO_: formData.detenido.trim(),
-            },
-            { onConflict: "ORDEN" }
-          );
-        if (deleError) {
-          deleErrorMessage = `Error al guardar Caso PJ en DELEGACIONES: ${deleError.message}`;
-        } else {
-          deleSuccessMessage = "Información de Caso PJ copiada con éxito.";
-        }
+        delePayload.NUMERO_DE_DETENIDOS_PRODUCTO_DE_LA_INVESTIGACION = String(numDetenidos);
+        delePayload.APELLIDOS_Y_NOMBRES_DE_LOS_DETENIDOS_PRODUCTO_DEL_CUMPLIMIENTO_ = formData.detenido.trim();
       } else {
-        const { error: deleError } = await supabase
-          .from("DELEGACIONES")
-          .update({
-            NUMERO_DE_DETENIDOS_PRODUCTO_DE_LA_INVESTIGACION: null,
-            APELLIDOS_Y_NOMBRES_DE_LOS_DETENIDOS_PRODUCTO_DEL_CUMPLIMIENTO_: null,
-          })
-          .eq("ORDEN", String(currentId));
-        if (deleError) {
-          deleErrorMessage = `Error al borrar Caso PJ de DELEGACIONES: ${deleError.message}`;
-        } else {
-          deleSuccessMessage = "Información de Caso PJ desactivada y borrada con éxito.";
-        }
+        delePayload.NUMERO_DE_DETENIDOS_PRODUCTO_DE_LA_INVESTIGACION = null;
+        delePayload.APELLIDOS_Y_NOMBRES_DE_LOS_DETENIDOS_PRODUCTO_DEL_CUMPLIMIENTO_ = null;
+      }
+
+      const { error: deleError } = await supabase
+        .from("DELEGACIONES")
+        .upsert(delePayload, { onConflict: "ORDEN" });
+
+      if (deleError) {
+        deleErrorMessage = `Error al guardar en DELEGACIONES: ${deleError.message}`;
+      } else {
+        deleSuccessMessage = "Información sincronizada con éxito en DELEGACIONES.";
       }
     }
 

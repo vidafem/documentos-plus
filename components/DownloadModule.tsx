@@ -723,6 +723,8 @@ export default function DownloadModule() {
       ? `${anioFiltro || "todos"}_${mesFiltro || "todos"}`
       : `${fechaInicioTotal || "inicio"}_${fechaFinTotal || "fin"}`.replace(/-/g, "_");
 
+    worksheet["!autofilter"] = { ref: worksheet["!ref"] || "A1:A1" };
+
     XLSX.writeFile(workbook, `DELEGACIONES_VIEJAS_${activeOption}_${fileSuffix}.xlsx`);
   };
 

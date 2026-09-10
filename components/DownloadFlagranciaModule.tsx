@@ -222,10 +222,22 @@ export default function DownloadFlagranciaModule() {
       return;
     }
 
+    const NUMERIC_COLUMNS_FLAGRANCIA = new Set([
+      "id",
+      "OFICIO_DESCARGO",
+      "RECONOCIMIENTOS",
+      "FOJAS",
+      "PLAZO_DIAS",
+    ]);
+
     const excelData = registros.map((row) => {
       const fila: Record<string, string> = {};
       FLAGRANCIA_HEADERS.forEach((header) => {
-        fila[header] = String(row[header] ?? "");
+        let val = String(row[header] ?? "").trim();
+        if (header === "IF" && val.startsWith("901018")) {
+          val = `0${val}`;
+        }
+        fila[header] = val;
       });
       return fila;
     });
@@ -271,50 +283,60 @@ export default function DownloadFlagranciaModule() {
       }
     }
 
-    // Fuerza texto + alineación derecha en datos; rojo en columnas marcadas.
+    // Aplica tipado nativo: fechas reales, números reales, texto protegido y alineaciones.
     for (let r = 1; r <= range.e.r; r += 1) {
       for (let c = range.s.c; c <= range.e.c; c += 1) {
         const addr = XLSX.utils.encode_cell({ r, c });
         const cell = worksheet[addr] as XLSX.CellObject & { s?: Record<string, unknown>; z?: string } | undefined;
         if (cell) {
-          const originalValue = String(cell.v ?? "");
+          const header = FLAGRANCIA_HEADERS[c];
+          let originalValue = String(cell.v ?? "").trim();
+          if (header === "IF" && originalValue.startsWith("901018")) {
+            originalValue = `0${originalValue}`;
+          }
+
           const isDateColumn = dateColIndexes.has(c);
+          const isNumericColumn = NUMERIC_COLUMNS_FLAGRANCIA.has(header);
           const excelSerial = isDateColumn ? isoDateToExcelSerial(originalValue) : null;
+
+          let horizontalAlign: "left" | "center" | "right" = "left";
 
           if (excelSerial !== null) {
             cell.t = "n";
             cell.v = excelSerial;
             cell.z = "yyyy-mm-dd";
+            horizontalAlign = "center";
+          } else if (header === "IF") {
+            cell.t = "s";
+            cell.v = originalValue;
+            cell.z = "@";
+            horizontalAlign = "center";
+          } else if (isNumericColumn && originalValue !== "" && !isNaN(Number(originalValue))) {
+            cell.t = "n";
+            cell.v = Number(originalValue);
+            cell.z = "#,##0";
+            horizontalAlign = "right";
           } else {
             cell.t = "s";
             cell.v = originalValue;
             cell.z = "@";
+            horizontalAlign = "left";
           }
 
+          const isIf = header === "IF";
+          const isRed = redColIndexes.has(c);
+
           cell.s = {
-            font: redColIndexes.has(c)
-              ? { color: { rgb: "FFFF0000" } }
-              : { color: { rgb: "FF000000" } },
-            alignment: { horizontal: isDateColumn ? "center" : "left", vertical: "center" },
+            font: isIf
+              ? { color: { rgb: "FF1E40AF" }, bold: true }
+              : { color: { rgb: isRed ? "FFFF0000" : "FF000000" } },
+            alignment: { horizontal: horizontalAlign, vertical: "center" },
           };
         }
       }
     }
 
-    // Columna IF: texto azul + negrita (sobreescribe el rojo si coincide).
-    const ifColIndex = FLAGRANCIA_HEADERS.indexOf("IF");
-    if (ifColIndex >= 0) {
-      for (let r = 1; r <= range.e.r; r += 1) {
-        const ifCellAddr = XLSX.utils.encode_cell({ r, c: ifColIndex });
-        const ifCell = worksheet[ifCellAddr] as (XLSX.CellObject & { s?: Record<string, unknown> }) | undefined;
-        if (ifCell) {
-          ifCell.s = {
-            font: { color: { rgb: "FF1E40AF" }, bold: true },
-            alignment: { horizontal: "left", vertical: "center" },
-          };
-        }
-      }
-    }
+    worksheet["!autofilter"] = { ref: worksheet["!ref"] || "A1:A1" };
 
     XLSX.writeFile(workbook, `FLAGRANCIA_F_RECEPCION_${fechaInicio}_a_${fechaFin}.xlsx`);
   };

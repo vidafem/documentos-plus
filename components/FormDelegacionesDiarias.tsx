@@ -761,21 +761,21 @@ export default function FormDelegacionesDiarias() {
     }
 
     if (!error && newId) {
+      const delePayload: Record<string, string | null> = {
+        ORDEN: String(newId),
+        CON_RESULTADOS: casoPj ? "SI" : "NO",
+        "CUMPLE/NO_CUMPLE": "NO",
+      };
       if (casoPj) {
         const numDetenidos = contarDetenidos(formData.detenido);
-        const { error: deleError } = await supabase
-          .from("DELEGACIONES")
-          .upsert(
-            {
-              ORDEN: String(newId),
-              NUMERO_DE_DETENIDOS_PRODUCTO_DE_LA_INVESTIGACION: String(numDetenidos),
-              APELLIDOS_Y_NOMBRES_DE_LOS_DETENIDOS_PRODUCTO_DEL_CUMPLIMIENTO_: formData.detenido.trim(),
-            },
-            { onConflict: "ORDEN" }
-          );
-        if (deleError) {
-          console.error("Error al copiar Caso PJ a DELEGACIONES:", deleError);
-        }
+        delePayload.NUMERO_DE_DETENIDOS_PRODUCTO_DE_LA_INVESTIGACION = String(numDetenidos);
+        delePayload.APELLIDOS_Y_NOMBRES_DE_LOS_DETENIDOS_PRODUCTO_DEL_CUMPLIMIENTO_ = formData.detenido.trim();
+      }
+      const { error: deleError } = await supabase
+        .from("DELEGACIONES")
+        .upsert(delePayload, { onConflict: "ORDEN" });
+      if (deleError) {
+        console.error("Error al copiar datos a DELEGACIONES:", deleError);
       }
     }
 

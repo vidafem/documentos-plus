@@ -300,8 +300,8 @@ export default function EditFlagranciaModule() {
 
     // Payload explícito con los nombres exactos de columna de la tabla FLAGRANCIA
     const payload: Record<string, unknown> = {
-      N_ART: 2,
-      QUE_ART_CUMPLIO_DENTRO_DEL_PLAZO: 2,
+      N_ART: "1,2,5,6",
+      QUE_ART_CUMPLIO_DENTRO_DEL_PLAZO: "1,2,5,6",
       CUMPLIMIENTO_PARCIAL: "NO",
       CUMPLIMIENTO_TOTAL: "SI",
       F_CUMPLIMIENTO: fcStr,
@@ -336,6 +336,14 @@ export default function EditFlagranciaModule() {
           .eq("IF", ifValue)
           .select("id");
         if (!retry.error && retry.data && retry.data.length > 0) {
+          try {
+            await supabase
+              .from("DELEGACIONES")
+              .update({ "CUMPLE/NO_CUMPLE": "SI" })
+              .eq("ORDEN", String(cumplirItem.id));
+          } catch {
+            // ignorar si aún no existe en DELEGACIONES
+          }
           setFcDefault({ anio: cumplimientoForm.fcAnio, mes: cumplimientoForm.fcMes, dia: cumplimientoForm.fcDia });
           setExtractoDefault({ anio: cumplimientoForm.exAnio, mes: cumplimientoForm.exMes, dia: cumplimientoForm.exDia });
           setNotification({ message: "Cumplimiento guardado en FLAGRANCIA", type: "success" });
@@ -353,6 +361,15 @@ export default function EditFlagranciaModule() {
       console.warn("[Cumplimiento] Update no afectó ninguna fila. id=", cumplirItem.id, "IF=", ifValue);
       setNotification({ message: "No se actualizó ninguna fila. Verifica permisos RLS en Supabase.", type: "error" });
       return;
+    }
+
+    try {
+      await supabase
+        .from("DELEGACIONES")
+        .update({ "CUMPLE/NO_CUMPLE": "SI" })
+        .eq("ORDEN", String(cumplirItem.id));
+    } catch {
+      // ignorar si aún no existe en DELEGACIONES
     }
 
     setFcDefault({ anio: cumplimientoForm.fcAnio, mes: cumplimientoForm.fcMes, dia: cumplimientoForm.fcDia });
