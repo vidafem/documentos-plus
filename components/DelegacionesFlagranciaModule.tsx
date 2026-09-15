@@ -214,8 +214,12 @@ const getYear = (value: unknown): string => {
   if (!value) return "";
   const raw = String(value).trim();
   if (!raw) return "";
-  const firstPart = raw.split(/[/-]/)[0] || "";
-  return /^\d{4}$/.test(firstPart) ? firstPart : "";
+  const normalized = normalizeDateValue(raw);
+  if (normalized) {
+    return normalized.split("-")[0] || "";
+  }
+  const match = raw.match(/\b(19\d\d|20\d\d)\b/);
+  return match ? match[1] : "";
 };
 
 const toText = (value: unknown): string => String(value ?? "");
@@ -249,6 +253,86 @@ const extractOfficioFourDigits = (value: unknown): string => {
   return digits.slice(-4).padStart(4, "0");
 };
 
+interface FiscalLookupMaps {
+  byKey: Map<string, string>;
+  byName: Map<string, string>;
+  byNumfis: Map<string, string>;
+}
+
+const normalizeFiscalName = (name: unknown): string => {
+  return String(name ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/\b(AB|ABG|ABOGADO|ABOGADA|DR|DRA|DOCTOR|DOCTORA|LIC|LCDO|LCDA|MSC|MGTR)\b\.?/g, "")
+    .replace(/[^\w\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+};
+
+const buildFiscalMaps = (fiscalRows: GenericRow[]): FiscalLookupMaps => {
+  const maps: FiscalLookupMaps = {
+    byKey: new Map<string, string>(),
+    byName: new Map<string, string>(),
+    byNumfis: new Map<string, string>(),
+  };
+
+  fiscalRows.forEach((item) => {
+    const rawFiscal = toText(item["FISCAL"]);
+    const cleanF = normalizeFiscalName(rawFiscal);
+    const rawNormalizedF = normalizeLookupKey(rawFiscal);
+    const numfis = extractFiscalNumber(item["NUMFIS"]);
+    const cod = toText(item["COD"]).replace(/\D/g, "").slice(-4).padStart(4, "0");
+
+    if (cod && cod !== "0000") {
+      // Prioridad 1: Coincidencia exacta (Fiscal + Numfis)
+      if (cleanF && numfis && !maps.byKey.has(`${cleanF}|${numfis}`)) {
+        maps.byKey.set(`${cleanF}|${numfis}`, cod);
+      }
+      if (rawNormalizedF && numfis && !maps.byKey.has(`${rawNormalizedF}|${numfis}`)) {
+        maps.byKey.set(`${rawNormalizedF}|${numfis}`, cod);
+      }
+
+      // Prioridad 2: Coincidencia por Nombre (si el fiscal tiene código en otro despacho)
+      if (cleanF && !maps.byName.has(cleanF)) {
+        maps.byName.set(cleanF, cod);
+      }
+      if (rawNormalizedF && !maps.byName.has(rawNormalizedF)) {
+        maps.byName.set(rawNormalizedF, cod);
+      }
+
+      // Prioridad 3: Fallback por número de fiscalía (primer código registrado para ese despacho)
+      if (numfis && !maps.byNumfis.has(numfis)) {
+        maps.byNumfis.set(numfis, cod);
+      }
+    }
+  });
+
+  return maps;
+};
+
+const resolveFiscalCod = (maps: FiscalLookupMaps, fiscalName: string, numFiscalia: string): string => {
+  const cleanName = normalizeFiscalName(fiscalName);
+  const rawNormalized = normalizeLookupKey(fiscalName);
+  const cleanNum = extractFiscalNumber(numFiscalia);
+
+  // 1. Prioridad 1: Coincidencia exacta existente (Fiscal + Número de fiscalía)
+  const exact = (cleanNum && (maps.byKey.get(`${cleanName}|${cleanNum}`) || maps.byKey.get(`${rawNormalized}|${cleanNum}`))) || "";
+  if (exact && exact !== "NFISCAL" && exact !== "0000") return exact;
+
+  // 2. Prioridad 2: Coincidencia por nombre de Fiscal (si el fiscal tiene código en otro despacho)
+  const byName = (cleanName && maps.byName.get(cleanName)) || (rawNormalized && maps.byName.get(rawNormalized)) || "";
+  if (byName && byName !== "NFISCAL" && byName !== "0000") return byName;
+
+  // 3. Prioridad 3: Fallback por Número de Fiscalía (primer código asociado a ese despacho)
+  if (cleanNum) {
+    const byNum = maps.byNumfis.get(cleanNum);
+    if (byNum && byNum !== "NFISCAL" && byNum !== "0000") return byNum;
+  }
+
+  return "NFISCAL";
+};
+
 const buildFiscalKey = (fiscal: unknown, numfis: unknown): string =>
   `${normalizeLookupKey(fiscal)}|${String(numfis ?? "").trim()}`;
 
@@ -277,7 +361,7 @@ const mapFlagranciaToDelegaciones = (
   row: GenericRow,
   index: number,
   articulosByDelito: Map<string, string>,
-  fiscalCodByKey: Map<string, string>
+  fiscalMaps: FiscalLookupMaps
 ): Record<string, string> => {
   const output: Record<string, string> = {};
 
@@ -317,8 +401,8 @@ const mapFlagranciaToDelegaciones = (
   output["NÚMERO_CORRESPONDIENTE_DE_FISCALÍA"] = numFiscalia;
   output["FECHA_DE_LA_DELEGACION"] = toText(row["F_DELEGACION"]);
   const anioDelegacion = getYear(row["F_DELEGACION"]);
-  const fiscalKey = buildFiscalKey(row["APELLIDOS_Y_NOMBRES_DEL_FISCAL"], numFiscalia);
-  const fiscalCod = fiscalCodByKey.get(fiscalKey) || "";
+  const fiscalName = toText(row["APELLIDOS_Y_NOMBRES_DEL_FISCAL"]);
+  const fiscalCod = resolveFiscalCod(fiscalMaps, fiscalName, numFiscalia);
   const oficio6 = extractOfficioSixDigits(row["Nº_DE_OFICIO_CON_LA_QUE_RECIBE_LA_DILIGENCIA_EL_AGENTE"]);
   output["Nº_DE_OFICIO_CON_LA_QUE_RECIBE_LA_DILIGENCIA_EL_AGENTE"] = `FPG-FEIFO${numFiscalia || ""}-${fiscalCod || ""}-${anioDelegacion || ""}-${oficio6}-O`;
   output["FECHA_DE_RECEPCIÓN_EN_LA_PJ"] = getRecepcionDateFromFlagrancia(row);
@@ -392,21 +476,14 @@ export const syncDelegacionesFromFlagranciaGlobal = async (selectedYearNum: numb
 
   const { data: fiscalData, error: fiscalError } = await supabase
     .from("fiscal")
-    .select("FISCAL, NUMFIS, COD");
+    .select("FISCAL, NUMFIS, COD")
+    .order("id", { ascending: true });
 
   if (fiscalError) {
     throw new Error(`Error leyendo tabla fiscal: ${fiscalError.message}`);
   }
 
-  const fiscalCodByKey = new Map<string, string>();
-  ((fiscalData || []) as GenericRow[]).forEach((item) => {
-    const fiscal = toText(item["FISCAL"]);
-    const numfis = extractFiscalNumber(item["NUMFIS"]);
-    const cod = toText(item["COD"]).replace(/\D/g, "").slice(-4).padStart(4, "0");
-    if (fiscal && numfis) {
-      fiscalCodByKey.set(buildFiscalKey(fiscal, numfis), cod);
-    }
-  });
+  const fiscalMaps = buildFiscalMaps((fiscalData || []) as GenericRow[]);
 
   const PAGE_SIZE = 1000;
   let from = 0;
@@ -464,7 +541,7 @@ export const syncDelegacionesFromFlagranciaGlobal = async (selectedYearNum: numb
   }
 
   const payload = filteredFlagranciaRows.map((row, index) => {
-    const mapped = mapFlagranciaToDelegaciones(row, index, articulosByDelito, fiscalCodByKey);
+    const mapped = mapFlagranciaToDelegaciones(row, index, articulosByDelito, fiscalMaps);
     const insertRow: Record<string, string> = {};
     const orden = toText(mapped["ORDEN"]);
     const existing = orden ? existingDelegacionesByOrden.get(orden) : undefined;
@@ -500,8 +577,13 @@ export const syncDelegacionesFromFlagranciaGlobal = async (selectedYearNum: numb
         existingValue = cumplimientoEsSi ? "SI" : "NO";
       }
 
-      // Regla conservadora: priorizar siempre el dato ya existente para no sobrescribir carga manual.
-      insertRow[column] = existingValue.trim().length > 0 ? existingValue : mappedValue;
+      // Priorizar el dato ya existente para no sobrescribir carga manual,
+      // pero si el oficio contiene "NFISCAL", actualizar con el valor mapeado resuelto.
+      if (column === "Nº_DE_OFICIO_CON_LA_QUE_RECIBE_LA_DILIGENCIA_EL_AGENTE" && (existingValue.includes("NFISCAL") || !existingValue.trim())) {
+        insertRow[column] = mappedValue;
+      } else {
+        insertRow[column] = existingValue.trim().length > 0 ? existingValue : mappedValue;
+      }
     });
     return insertRow;
   });
@@ -628,17 +710,31 @@ export default function DelegacionesFlagranciaModule() {
   }, [selectedEmptyField]);
 
   const cargarDelegaciones = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("DELEGACIONES")
-      .select("*")
-      .order("ORDEN", { ascending: true });
+    const PAGE_SIZE = 1000;
+    let from = 0;
+    const allRows: GenericRow[] = [];
 
-    if (error) {
-      setNotification({ message: `No se pudo cargar DELEGACIONES: ${error.message}`, type: "error" });
-      return;
+    while (true) {
+      const to = from + PAGE_SIZE - 1;
+      const { data, error } = await supabase
+        .from("DELEGACIONES")
+        .select("*")
+        .order("ORDEN", { ascending: true })
+        .range(from, to);
+
+      if (error) {
+        setNotification({ message: `No se pudo cargar DELEGACIONES: ${error.message}`, type: "error" });
+        return;
+      }
+
+      const chunk = (data || []) as GenericRow[];
+      allRows.push(...chunk);
+
+      if (chunk.length < PAGE_SIZE) break;
+      from += PAGE_SIZE;
     }
 
-    const safeRows = ((data || []) as GenericRow[]).map((row) => {
+    const safeRows = allRows.map((row) => {
       const normalized: Record<string, string> = {};
       DELEGACIONES_HEADERS.forEach((header) => {
         let dbKey: string = header;
@@ -650,7 +746,10 @@ export default function DelegacionesFlagranciaModule() {
         normalized[header] = toText(row[dbKey]);
       });
       return normalized;
-    }).filter((row) => isFromYearOnward(row["FECHA_DE_RECEPCIÓN_EN_LA_PJ"], selectedYearNum));
+    }).filter((row) => {
+      const fecha = row["FECHA_DE_RECEPCIÓN_EN_LA_PJ"] || row["FECHA_DE_LA_DELEGACION"] || row["AÑO_DE_RECEPCION_POR_"];
+      return isFromYearOnward(fecha, selectedYearNum);
+    });
 
     setRegistros(safeRows);
   }, [selectedYearNum]);
@@ -678,7 +777,8 @@ export default function DelegacionesFlagranciaModule() {
 
     const { data: fiscalData, error: fiscalError } = await supabase
       .from("fiscal")
-      .select("FISCAL, NUMFIS, COD");
+      .select("FISCAL, NUMFIS, COD")
+      .order("id", { ascending: true });
 
     if (fiscalError) {
       setLoading(false);
@@ -686,15 +786,7 @@ export default function DelegacionesFlagranciaModule() {
       return;
     }
 
-    const fiscalCodByKey = new Map<string, string>();
-    ((fiscalData || []) as GenericRow[]).forEach((item) => {
-      const fiscal = toText(item["FISCAL"]);
-      const numfis = extractFiscalNumber(item["NUMFIS"]);
-      const cod = toText(item["COD"]).replace(/\D/g, "").slice(-4).padStart(4, "0");
-      if (fiscal && numfis) {
-        fiscalCodByKey.set(buildFiscalKey(fiscal, numfis), cod);
-      }
-    });
+    const fiscalMaps = buildFiscalMaps((fiscalData || []) as GenericRow[]);
 
     const PAGE_SIZE = 1000;
     let from = 0;
@@ -726,7 +818,7 @@ export default function DelegacionesFlagranciaModule() {
     );
 
     const payload = filteredFlagranciaRows.map((row, index) => {
-      const mapped = mapFlagranciaToDelegaciones(row, index, articulosByDelito, fiscalCodByKey);
+      const mapped = mapFlagranciaToDelegaciones(row, index, articulosByDelito, fiscalMaps);
       const insertRow: Record<string, string> = {};
       DELEGACIONES_INSERT_COLUMNS.forEach((column) => {
         let mappedKey: string = column;

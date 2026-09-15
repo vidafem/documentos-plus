@@ -15,7 +15,7 @@ export default function FormDelegaciones() {
   const [mesApertura, setMesApertura] = useState("12");
   const [mesCierre, setMesCierre] = useState("12");
   const [oficioAnio, setOficioAnio] = useState("2021");
-  const [nTomo, setNTomo] = useState("");
+  const [nTomo, setNTomo] = useState("1/1");
 
   // --- VALORES VARIABLES (Se limpian al guardar) ---
   const [expedienteSufijo, setExpedienteSufijo] = useState("");
@@ -44,6 +44,7 @@ export default function FormDelegaciones() {
   useEffect(() => {
     const expedientePrefijo = `IF-0901018${(anioApertura || anioBase || "").slice(-2).padStart(2, "0")}`;
     const fullExpediente = `${expedientePrefijo}${expedienteSufijo}`;
+    const altExpediente = fullExpediente.replace(/^IF-0901018/, "IF-901018");
 
     if (!expedienteSufijo || expedienteSufijo.length < 2) {
       setExpUnicidad("idle");
@@ -55,7 +56,7 @@ export default function FormDelegaciones() {
         const { data, error } = await supabase
           .from("delegaciones_viejas")
           .select("id")
-          .eq("expediente", fullExpediente)
+          .or(`expediente.eq.${fullExpediente},expediente.eq.${altExpediente}`)
           .limit(1);
 
         if (!error) {
@@ -178,7 +179,7 @@ export default function FormDelegaciones() {
     const registroFinal = {
       n_caja: "",
       expediente: `${expedientePrefijo}${expedienteSufijo}`,
-      n_tomo: nTomo,
+      n_tomo: nTomo.trim() || "1/1",
       descripcion: descFinal,
       fecha_apertura: `${anioApertura}-${mesApertura}-${diaApertura.padStart(2, '0')}`,
       fecha_cierre: `${anioCierre}-${mesCierre}-${diaCierre.padStart(2, '0')}`,

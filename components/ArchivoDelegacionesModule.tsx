@@ -108,7 +108,87 @@ const toNullableInteger = (value: unknown): number | null => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
-const mapFlagranciaToArchDele = (row: GenericRow, fiscalCodByKey: Map<string, string>): Record<string, string | number | null> => {
+interface FiscalLookupMaps {
+  byKey: Map<string, string>;
+  byName: Map<string, string>;
+  byNumfis: Map<string, string>;
+}
+
+const normalizeFiscalName = (name: unknown): string => {
+  return String(name ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/\b(AB|ABG|ABOGADO|ABOGADA|DR|DRA|DOCTOR|DOCTORA|LIC|LCDO|LCDA|MSC|MGTR)\b\.?/g, "")
+    .replace(/[^\w\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+};
+
+const buildFiscalMaps = (fiscalRows: GenericRow[]): FiscalLookupMaps => {
+  const maps: FiscalLookupMaps = {
+    byKey: new Map<string, string>(),
+    byName: new Map<string, string>(),
+    byNumfis: new Map<string, string>(),
+  };
+
+  fiscalRows.forEach((item) => {
+    const rawFiscal = toText(item["FISCAL"]);
+    const cleanF = normalizeFiscalName(rawFiscal);
+    const rawNormalizedF = normalizeLookupKey(rawFiscal);
+    const numfis = extractFiscalNumber(item["NUMFIS"]);
+    const cod = toText(item["COD"]).replace(/\D/g, "").slice(-4).padStart(4, "0");
+
+    if (cod && cod !== "0000") {
+      // Prioridad 1: Coincidencia exacta (Fiscal + Numfis)
+      if (cleanF && numfis && !maps.byKey.has(`${cleanF}|${numfis}`)) {
+        maps.byKey.set(`${cleanF}|${numfis}`, cod);
+      }
+      if (rawNormalizedF && numfis && !maps.byKey.has(`${rawNormalizedF}|${numfis}`)) {
+        maps.byKey.set(`${rawNormalizedF}|${numfis}`, cod);
+      }
+
+      // Prioridad 2: Coincidencia por Nombre (si el fiscal tiene código en otro despacho)
+      if (cleanF && !maps.byName.has(cleanF)) {
+        maps.byName.set(cleanF, cod);
+      }
+      if (rawNormalizedF && !maps.byName.has(rawNormalizedF)) {
+        maps.byName.set(rawNormalizedF, cod);
+      }
+
+      // Prioridad 3: Fallback por número de fiscalía (primer código registrado para ese despacho)
+      if (numfis && !maps.byNumfis.has(numfis)) {
+        maps.byNumfis.set(numfis, cod);
+      }
+    }
+  });
+
+  return maps;
+};
+
+const resolveFiscalCod = (maps: FiscalLookupMaps, fiscalName: string, numFiscalia: string): string => {
+  const cleanName = normalizeFiscalName(fiscalName);
+  const rawNormalized = normalizeLookupKey(fiscalName);
+  const cleanNum = extractFiscalNumber(numFiscalia);
+
+  // 1. Prioridad 1: Coincidencia exacta existente (Fiscal + Número de fiscalía)
+  const exact = (cleanNum && (maps.byKey.get(`${cleanName}|${cleanNum}`) || maps.byKey.get(`${rawNormalized}|${cleanNum}`))) || "";
+  if (exact && exact !== "NFISCAL" && exact !== "0000") return exact;
+
+  // 2. Prioridad 2: Coincidencia por nombre de Fiscal (si el fiscal tiene código en otro despacho)
+  const byName = (cleanName && maps.byName.get(cleanName)) || (rawNormalized && maps.byName.get(rawNormalized)) || "";
+  if (byName && byName !== "NFISCAL" && byName !== "0000") return byName;
+
+  // 3. Prioridad 3: Fallback por Número de Fiscalía (primer código asociado a ese despacho)
+  if (cleanNum) {
+    const byNum = maps.byNumfis.get(cleanNum);
+    if (byNum && byNum !== "NFISCAL" && byNum !== "0000") return byNum;
+  }
+
+  return "NFISCAL";
+};
+
+const mapFlagranciaToArchDele = (row: GenericRow, fiscalMaps: FiscalLookupMaps): Record<string, string | number | null> => {
   const result: Record<string, string | number | null> = {};
 
   const rawIf = toText(row["IF"]).trim();
@@ -116,7 +196,7 @@ const mapFlagranciaToArchDele = (row: GenericRow, fiscalCodByKey: Map<string, st
   const unidadFiscalia = toText(row["UNIDAD_ESPECIALIZADA_DE_FISCALIA"]);
   const numFiscalia = extractFiscalNumber(unidadFiscalia);
   const fiscalName = toText(row["APELLIDOS_Y_NOMBRES_DEL_FISCAL"]);
-  const fiscalCod = fiscalCodByKey.get(buildFiscalKey(fiscalName, numFiscalia)) || "NFISCAL";
+  const fiscalCod = resolveFiscalCod(fiscalMaps, fiscalName, numFiscalia);
   const anioDelegacion = getYear(row["F_DELEGACION"]);
   const oficio6 = extractOfficioSixDigits(row["Nº_DE_OFICIO_CON_LA_QUE_RECIBE_LA_DILIGENCIA_EL_AGENTE"]);
 
@@ -128,7 +208,7 @@ const mapFlagranciaToArchDele = (row: GenericRow, fiscalCodByKey: Map<string, st
   result["SERIE/SUBSERIE_DOCUMENTAL"] = "Procedimientos Investigativos por Disposición Judicial";
   result["N°CAJA"] = "";
   result["N°_DE_EXPEDIENTE"] = `IF-${ifValue}`;
-  result["N°_DE_TOMO"] = "";
+  result["N°_DE_TOMO"] = "1/1";
   result["DESCRIPCIÓN"] = `Oficio No.FPG-FEIFO${numFiscalia}-${fiscalCod}-${anioDelegacion}-${oficio6}-O; Delito: ${delito} ; ${sospechosoTexto}`;
   result["APERTURA"] = toNullableDateIso(row["F_DELEGACION"]);
   result["CIERRE"] = toNullableDateIso(row["EXTRACTO"]);
@@ -422,21 +502,14 @@ export const syncArchDeleFromFlagranciaGlobal = async (): Promise<{
 }> => {
   const { data: fiscalData, error: fiscalError } = await supabase
     .from("fiscal")
-    .select("FISCAL, NUMFIS, COD");
+    .select("FISCAL, NUMFIS, COD")
+    .order("id", { ascending: true });
 
   if (fiscalError) {
     throw new Error(`No se pudo leer fiscal: ${fiscalError.message}`);
   }
 
-  const fiscalCodByKey = new Map<string, string>();
-  ((fiscalData || []) as GenericRow[]).forEach((item) => {
-    const fiscal = toText(item["FISCAL"]);
-    const numfis = extractFiscalNumber(item["NUMFIS"]);
-    const cod = toText(item["COD"]).replace(/\D/g, "").slice(-4).padStart(4, "0");
-    if (fiscal && numfis) {
-      fiscalCodByKey.set(buildFiscalKey(fiscal, numfis), cod || "NFISCAL");
-    }
-  });
+  const fiscalMaps = buildFiscalMaps((fiscalData || []) as GenericRow[]);
 
   const PAGE_SIZE = 1000;
   let from = 0;
@@ -456,13 +529,14 @@ export const syncArchDeleFromFlagranciaGlobal = async (): Promise<{
 
     const chunk = (flagranciaData || []) as GenericRow[];
     flagranciaRows.push(...chunk);
+
     if (chunk.length < PAGE_SIZE) break;
     from += PAGE_SIZE;
   }
 
   const payload = flagranciaRows
     .map((row) => {
-      const mapped = mapFlagranciaToArchDele(row, fiscalCodByKey);
+      const mapped = mapFlagranciaToArchDele(row, fiscalMaps);
       const insertRow: Record<string, string | number | null> = {};
       ARCH_DELE_INSERT_COLUMNS.forEach((column) => {
         const value = mapped[column];
@@ -497,101 +571,35 @@ export const syncArchDeleFromFlagranciaGlobal = async (): Promise<{
   });
   const dedupedPayload = Array.from(uniqueByExpediente.values());
 
-  const existingManualValuesByComposite = new Map<string, { caja: string; tomo: string }>();
-  const existingManualValuesByExpediente = new Map<string, { caja: string; tomo: string }>();
-  const existingRowsByComposite = new Map<string, GenericRow>();
-  {
-    const PAGE_SIZE_EXISTING = 1000;
-    let fromExisting = 0;
-    while (true) {
-      const toExisting = fromExisting + PAGE_SIZE_EXISTING - 1;
-      const { data: existingData, error: existingError } = await supabase
-        .from("Arch_dele")
-        .select("*")
-        .order("id", { ascending: true })
-        .range(fromExisting, toExisting);
+  const finalPayload = dedupedPayload.map((row) => ({
+    ...row,
+    "N°_DE_TOMO": toText(row["N°_DE_TOMO"]).trim() || "1/1",
+  }));
 
-      if (existingError) {
-        throw new Error(`No se pudo leer Arch_dele existente: ${existingError.message}`);
-      }
+  // Limpiar completamente Arch_dele para reescritura limpia desde FLAGRANCIA sin duplicados
+  const { error: clearGteError } = await supabase
+    .from("Arch_dele")
+    .delete()
+    .gte("id", 0);
 
-      const chunk = (existingData || []) as GenericRow[];
-      chunk.forEach((row) => {
-        const expediente = readFirstValue(row, ["N°_DE_EXPEDIENTE", "N_DE_EXPEDIENTE", "EXPEDIENTE", "expediente"]);
-        const key = buildArchCompositeKey(
-          expediente,
-          readFirstValue(row, ["CIERRE", "FECHA_CIERRE", "fecha_cierre"])
-        );
-        const caja = toText(readFirstValue(row, ["N°CAJA", "N_CAJA", "n_caja"]));
-        const tomo = toText(readFirstValue(row, ["N°_DE_TOMO", "N_DE_TOMO", "N_TOMO", "n_tomo"]));
+  if (clearGteError) {
+    const { error: clearNotNullError } = await supabase
+      .from("Arch_dele")
+      .delete()
+      .not("SOPORTE", "is", null);
 
-        if (key) {
-          existingManualValuesByComposite.set(key, { caja, tomo });
-          existingRowsByComposite.set(key, row);
-        }
-
-        const expKey = buildArchExpedienteKey(expediente);
-        if (expKey && !existingManualValuesByExpediente.has(expKey)) {
-          existingManualValuesByExpediente.set(expKey, { caja, tomo });
-        }
-      });
-
-      if (chunk.length < PAGE_SIZE_EXISTING) break;
-      fromExisting += PAGE_SIZE_EXISTING;
+    if (clearNotNullError) {
+      throw new Error(`No se pudo limpiar Arch_dele: ${clearNotNullError.message}`);
     }
-  }
 
-  const mergedPayload = dedupedPayload.map((row) => {
-    const key = buildArchCompositeKey(row["N°_DE_EXPEDIENTE"], row["CIERRE"]);
-    const expKey = buildArchExpedienteKey(row["N°_DE_EXPEDIENTE"]);
-    const existing = (key ? existingManualValuesByComposite.get(key) : undefined)
-      || (expKey ? existingManualValuesByExpediente.get(expKey) : undefined);
-    if (!existing) return row;
+    const { error: clearNullError } = await supabase
+      .from("Arch_dele")
+      .delete()
+      .is("SOPORTE", null);
 
-    const merged = { ...row };
-    const currentCaja = toText(merged["N°CAJA"]);
-    const currentTomo = toText(merged["N°_DE_TOMO"]);
-
-    if (!currentCaja && existing.caja) merged["N°CAJA"] = existing.caja;
-    if (!currentTomo && existing.tomo) merged["N°_DE_TOMO"] = existing.tomo;
-
-    return merged;
-  });
-
-  const incomingKeys = new Set(
-    mergedPayload
-      .map((row) => buildArchCompositeKey(row["N°_DE_EXPEDIENTE"], row["CIERRE"]))
-      .filter(Boolean)
-  );
-
-  const carriedExistingRows: Record<string, string | number | null>[] = [];
-  existingRowsByComposite.forEach((row, key) => {
-    if (incomingKeys.has(key)) return;
-    const carried: Record<string, string | number | null> = {};
-    ARCH_DELE_INSERT_COLUMNS.forEach((column) => {
-      carried[column] = toText(readFirstValue(row, [column])) || null;
-    });
-    carriedExistingRows.push(carried);
-  });
-
-  const finalPayload = [...mergedPayload, ...carriedExistingRows];
-
-  const { error: clearNotNullError } = await supabase
-    .from("Arch_dele")
-    .delete()
-    .not("SOPORTE", "is", null);
-
-  if (clearNotNullError) {
-    throw new Error(`No se pudo limpiar Arch_dele: ${clearNotNullError.message}`);
-  }
-
-  const { error: clearNullError } = await supabase
-    .from("Arch_dele")
-    .delete()
-    .is("SOPORTE", null);
-
-  if (clearNullError) {
-    throw new Error(`No se pudo limpiar Arch_dele: ${clearNullError.message}`);
+    if (clearNullError) {
+      throw new Error(`No se pudo limpiar Arch_dele: ${clearNullError.message}`);
+    }
   }
 
   if (finalPayload.length > 0) {

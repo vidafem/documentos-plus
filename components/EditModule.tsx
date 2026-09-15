@@ -214,6 +214,7 @@ export default function EditModule() {
 
     const expedientePrefijo = `IF-0901018${(editForm.anioApertura || editForm.anioBase || "").slice(-2).padStart(2, "0")}`;
     const fullExpediente = `${expedientePrefijo}${editForm.expedienteSufijo}`;
+    const altExpediente = fullExpediente.replace(/^IF-0901018/, "IF-901018");
 
     if (!editForm.expedienteSufijo || editForm.expedienteSufijo.length < 2) {
       setExpUnicidad("idle");
@@ -225,7 +226,7 @@ export default function EditModule() {
         const { data, error } = await supabase
           .from("delegaciones_viejas")
           .select("id")
-          .eq("expediente", fullExpediente)
+          .or(`expediente.eq.${fullExpediente},expediente.eq.${altExpediente}`)
           .neq("id", editando.id)
           .limit(1);
 
@@ -269,10 +270,14 @@ export default function EditModule() {
     const cierre = parseIsoDateParts(String(item.fecha_cierre || ""));
     const parsedDescripcion = parseDescripcion(String(item.descripcion || ""));
     const anioApertura = apertura.year || "2021";
-    const expedientePrefijo = `IF-0901018${anioApertura.slice(-2).padStart(2, "0")}`;
+    const anio2 = anioApertura.slice(-2).padStart(2, "0");
+    const expedientePrefijoConCero = `IF-0901018${anio2}`;
+    const expedientePrefijoSinCero = `IF-901018${anio2}`;
     const expedienteValue = String(item.expediente || "");
-    const expedienteSufijo = expedienteValue.startsWith(expedientePrefijo)
-      ? expedienteValue.slice(expedientePrefijo.length)
+    const expedienteSufijo = expedienteValue.startsWith(expedientePrefijoConCero)
+      ? expedienteValue.slice(expedientePrefijoConCero.length)
+      : expedienteValue.startsWith(expedientePrefijoSinCero)
+      ? expedienteValue.slice(expedientePrefijoSinCero.length)
       : expedienteValue;
 
     setEditando(item);
@@ -284,7 +289,7 @@ export default function EditModule() {
       mesApertura: apertura.month || "12",
       mesCierre: cierre.month || apertura.month || "12",
       oficioAnio: parsedDescripcion.oficioAnio || anioApertura,
-      nTomo: String(item.n_tomo || ""),
+      nTomo: String(item.n_tomo || "1/1"),
       expedienteSufijo,
       diaApertura: apertura.day || "",
       diaCierre: cierre.day || "",
@@ -411,7 +416,7 @@ export default function EditModule() {
 
     const payload = {
       expediente: `${expedientePrefijo}${editForm.expedienteSufijo}`,
-      n_tomo: editForm.nTomo,
+      n_tomo: editForm.nTomo.trim() || "1/1",
       descripcion: descFinal,
       fecha_apertura: `${editForm.anioApertura}-${editForm.mesApertura}-${editForm.diaApertura.padStart(2, "0")}`,
       fecha_cierre: `${editForm.anioCierre}-${editForm.mesCierre}-${editForm.diaCierre.padStart(2, "0")}`,
