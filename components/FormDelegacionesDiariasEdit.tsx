@@ -592,7 +592,6 @@ export default function FormDelegacionesDiarias({
       tipoDelito: item.TIPO_DE_DELITO || "",
     }));
     setDelitoSugerencias([]);
-    setDelitoActivoIndex(-1);
   };
 
   const handleAutofillFiscalia = async () => {
