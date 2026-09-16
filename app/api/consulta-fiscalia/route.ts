@@ -163,6 +163,20 @@ interface CacheEntry {
 const memoryCache = new Map<string, CacheEntry>();
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 horas de caché
 
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Allow-Private-Network": "true",
+};
+
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: CORS_HEADERS,
+  });
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const valor = (searchParams.get("oficio") || searchParams.get("ndd") || searchParams.get("valor") || "").trim();
@@ -178,7 +192,7 @@ export async function GET(request: NextRequest) {
   if (!valor || valor.length < 8) {
     return NextResponse.json(
       { success: false, found: false, message: "El código debe contener al menos 8 caracteres." },
-      { status: 400 }
+      { status: 400, headers: CORS_HEADERS }
     );
   }
 
@@ -186,7 +200,7 @@ export async function GET(request: NextRequest) {
   const cacheKey = `${criterioNumber}:${valor}`;
   const cached = memoryCache.get(cacheKey);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
-    return NextResponse.json(cached.data);
+    return NextResponse.json(cached.data, { headers: CORS_HEADERS });
   }
 
   try {
@@ -199,7 +213,7 @@ export async function GET(request: NextRequest) {
         message: "No se encontraron registros para este código en Fiscalía.",
       };
       memoryCache.set(cacheKey, { data: notFoundPayload, timestamp: Date.now() - (CACHE_TTL_MS - 60 * 60 * 1000) });
-      return NextResponse.json(notFoundPayload);
+      return NextResponse.json(notFoundPayload, { headers: CORS_HEADERS });
     }
 
     const row = siafData.cabecera[0];
@@ -228,7 +242,7 @@ export async function GET(request: NextRequest) {
 
     memoryCache.set(cacheKey, { data: foundPayload, timestamp: Date.now() });
 
-    return NextResponse.json(foundPayload);
+    return NextResponse.json(foundPayload, { headers: CORS_HEADERS });
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Error desconocido al consultar Fiscalía";
     return NextResponse.json(
@@ -237,7 +251,7 @@ export async function GET(request: NextRequest) {
         found: false,
         error: msg,
       },
-      { status: 200 }
+      { status: 200, headers: CORS_HEADERS }
     );
   }
 }

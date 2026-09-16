@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import Notification from "./Notification";
 import HorizontalPicker from "./HorizontalPicker";
+import { consultarFiscaliaConFallback } from "@/lib/fiscaliaClient";
 
 const normalizeYearInput = (value: string) => value.replace(/\D/g, "").slice(0, 4);
 const normalizeUpper = (value: string) => value.toUpperCase();
@@ -282,9 +283,8 @@ export default function FormPartesNuevo() {
     const timer = setTimeout(async () => {
       setFiscaliaStatus("loading");
       try {
-        const res = await fetch(`/api/consulta-fiscalia?oficio=${encodeURIComponent(fullOficio)}`);
-        const json = await res.json();
-        if (json.success && json.found && (json.detenidos || json.delito)) {
+        const json = await consultarFiscaliaConFallback(`oficio=${encodeURIComponent(fullOficio)}`);
+        if (json && json.success && json.found && (json.detenidos || json.delito)) {
           setFiscaliaStatus("found");
           setFiscaliaResult({
             delito: json.delito || "",

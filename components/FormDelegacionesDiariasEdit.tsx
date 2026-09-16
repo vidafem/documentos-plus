@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import Notification from "./Notification";
+import { consultarFiscaliaConFallback } from "@/lib/fiscaliaClient";
 
 type PeritoSuggestion = {
   grado: string;
@@ -456,9 +457,8 @@ export default function FormDelegacionesDiarias({
     const timer = setTimeout(async () => {
       setFiscaliaStatus("loading");
       try {
-        const res = await fetch(`/api/consulta-fiscalia?criterio=1&valor=${encodeURIComponent(fullNdd)}`);
-        const json = await res.json();
-        if (json.success && json.found && (json.detenidos || json.delito)) {
+        const json = await consultarFiscaliaConFallback(`criterio=1&valor=${encodeURIComponent(fullNdd)}`);
+        if (json && json.success && json.found && (json.detenidos || json.delito)) {
           setFiscaliaStatus("found");
           setFiscaliaResult({
             delito: json.delito || "",
