@@ -184,7 +184,15 @@ export async function GET(request: NextRequest) {
 
   let criterioNumber = 6;
   if (rawCriterio) {
-    criterioNumber = Number(rawCriterio) || 6;
+    if (rawCriterio === "cedula" || rawCriterio === "2") criterioNumber = 2;
+    else if (rawCriterio === "ruc" || rawCriterio === "3") criterioNumber = 3;
+    else if (rawCriterio === "ndd" || rawCriterio === "1") criterioNumber = 1;
+    else if (rawCriterio === "oficio" || rawCriterio === "6") criterioNumber = 6;
+    else criterioNumber = Number(rawCriterio) || 6;
+  } else if (/^\d{10}$/.test(valor)) {
+    criterioNumber = 2; // Cédula (10 dígitos)
+  } else if (/^\d{13}$/.test(valor)) {
+    criterioNumber = 3; // RUC (13 dígitos)
   } else if (/^\d{15}$/.test(valor)) {
     criterioNumber = 1; // 1: Noticia del Delito (15 dígitos)
   }
@@ -216,6 +224,30 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(notFoundPayload, { headers: CORS_HEADERS });
     }
 
+    const records = siafData.cabecera.map((item) => {
+      const sRaw = Array.isArray(item.sujetos) ? item.sujetos : [];
+      const procs = sRaw
+        .filter((s) => {
+          const t = String(s.tipo || "").trim().toUpperCase();
+          return t === "PROCESADO" || t === "SOSPECHOSO" || t === "APREHENDIDO" || t === "DETENIDO";
+        })
+        .map((s) => String(s.persona || "").trim().toUpperCase())
+        .filter(Boolean);
+      const todos = sRaw
+        .filter((s) => String(s.persona || "").trim().length > 0)
+        .map((s) => `${String(s.persona || "").trim().toUpperCase()} (${String(s.tipo || "").trim().toUpperCase()})`);
+
+      return {
+        ndd: String(item.ndd || item.ndd1 || "").trim(),
+        fecha: String(item.fecha || "").trim(),
+        hora: String(item.hora || "").trim(),
+        delito: String(item.gen_delito_tipopenal || "").trim().toUpperCase(),
+        detenidos: procs.join(", ") || (todos.length > 0 ? todos.join(", ") : ""),
+        procesadosCount: procs.length,
+        sujetos: sRaw,
+      };
+    });
+
     const row = siafData.cabecera[0];
     const delito = String(row.gen_delito_tipopenal || "").trim().toUpperCase();
 
@@ -238,6 +270,7 @@ export async function GET(request: NextRequest) {
       procesadosCount: procesados.length,
       fecha: String(row.fecha || "").trim(),
       ndd: String(row.ndd || row.ndd1 || ""),
+      records,
     };
 
     memoryCache.set(cacheKey, { data: foundPayload, timestamp: Date.now() });

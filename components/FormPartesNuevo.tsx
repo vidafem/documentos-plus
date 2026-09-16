@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabaseClient";
 import Notification from "./Notification";
 import HorizontalPicker from "./HorizontalPicker";
 import { consultarFiscaliaConFallback } from "@/lib/fiscaliaClient";
+import ModalBusquedaCedulaFiscalia, { FiscaliaRecordItem } from "./ModalBusquedaCedulaFiscalia";
 
 const normalizeYearInput = (value: string) => value.replace(/\D/g, "").slice(0, 4);
 const normalizeUpper = (value: string) => value.toUpperCase();
@@ -59,6 +60,7 @@ export default function FormPartesNuevo() {
   const [sugerencias, setSugerencias] = useState<{ delito: string }[]>([]);
   const [fiscaliaStatus, setFiscaliaStatus] = useState<"idle" | "loading" | "found" | "not_found">("idle");
   const [fiscaliaResult, setFiscaliaResult] = useState<{ delito: string; detenidos: string; count: number } | null>(null);
+  const [isCedulaModalOpen, setIsCedulaModalOpen] = useState(false);
 
   const obtenerSiguienteExpedientePorAnio = async (anioSeleccionado: string) => {
     if (anioSeleccionado.length !== 4) {
@@ -292,6 +294,53 @@ export default function FormPartesNuevo() {
     if (fiscaliaResult.delito) {
       void buscarDelitos(fiscaliaResult.delito);
     }
+  };
+
+  const handleSelectRecordFromCedula = (record: FiscaliaRecordItem, applyDate = true) => {
+    if (record.detenidos) {
+      setDetenidos(normalizeUpper(record.detenidos));
+    }
+    if (record.delito) {
+      void buscarDelitos(record.delito);
+    }
+    if (applyDate && record.fecha) {
+      let y = "", m = "", d = "";
+      if (record.fecha.includes("-")) {
+        const parts = record.fecha.split("-");
+        if (parts.length === 3) {
+          if (parts[0].length === 4) {
+            [y, m, d] = parts;
+          } else {
+            [d, m, y] = parts;
+          }
+        }
+      } else if (record.fecha.includes("/")) {
+        const parts = record.fecha.split("/");
+        if (parts.length === 3) {
+          if (parts[0].length === 4) {
+            [y, m, d] = parts;
+          } else {
+            [d, m, y] = parts;
+          }
+        }
+      }
+      if (y && m && d) {
+        setAnio(y);
+        setMesProceso(m.padStart(2, "0"));
+        setDiaApertura(d.padStart(2, "0"));
+        setDiaCierre(d.padStart(2, "0"));
+      }
+    }
+    setFiscaliaStatus("found");
+    setFiscaliaResult({
+      delito: record.delito || "",
+      detenidos: record.detenidos || "",
+      count: record.procesadosCount || 1,
+    });
+    setNotification({
+      message: `Causa cargada desde Fiscalía (${record.fecha ? "Fecha: " + record.fecha : "NDD: " + record.ndd})`,
+      type: "success",
+    });
   };
 
   // 2. BUSCADOR DE DELITOS
@@ -535,10 +584,15 @@ export default function FormPartesNuevo() {
               )}
 
               {fiscaliaStatus === "not_found" && (
-                <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-red-500/10 text-red-300 border border-red-500/20 text-[9px] font-bold uppercase tracking-wide">
-                  <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
-                  Fiscalía: Sin registros (Ingreso manual)
-                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsCedulaModalOpen(true)}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-500/20 hover:bg-red-500/35 text-red-300 border border-red-500/30 text-[9px] font-bold uppercase tracking-wide transition-all hover:scale-105 active:scale-95 cursor-pointer shadow-[0_0_10px_rgba(239,68,68,0.2)]"
+                  title="No se encontró por código. Clic para buscar por Cédula o RUC en Fiscalía"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
+                  <span>Fiscalía: Sin registros — ¿Buscar por Cédula? 🔍</span>
+                </button>
               )}
             </div>
             <textarea required value={detenidos} onChange={(e) => setDetenidos(normalizeUpper(e.target.value))} onKeyDown={handleDetenidosKeyDown} className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white outline-none focus:border-indigo-500 h-14 resize-none custom-scrollbar" placeholder="NOMBRES DE LOS DETENIDOS..." />
@@ -579,6 +633,12 @@ export default function FormPartesNuevo() {
           </div>
         </form>
       </div>
+
+      <ModalBusquedaCedulaFiscalia
+        isOpen={isCedulaModalOpen}
+        onClose={() => setIsCedulaModalOpen(false)}
+        onSelectRecord={handleSelectRecordFromCedula}
+      />
     </>
   );
 }
