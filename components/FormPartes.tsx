@@ -152,9 +152,6 @@ export default function FormPartes() {
         if (!active) return;
 
         let initialYear = "2024";
-        let initialMonth = "01";
-        let initialDiaAp = "01";
-        let initialDiaCi = "01";
 
         if (data && data.length > 0) {
           const row = data[0];
@@ -162,25 +159,17 @@ export default function FormPartes() {
             const parts = String(row.fecha_cierre).split("-");
             if (parts.length === 3) {
               initialYear = parts[0];
-              initialMonth = parts[1];
-              initialDiaCi = parts[2];
             }
           } else if (row.expediente) {
             const match = String(row.expediente).match(/-(\d{4})$/);
             if (match) initialYear = match[1];
           }
-          if (row.fecha_apertura) {
-            const partsAp = String(row.fecha_apertura).split("-");
-            if (partsAp.length === 3) {
-              initialDiaAp = partsAp[2];
-            }
-          }
         }
 
         setAnio(initialYear);
-        setMesProceso(initialMonth);
-        setDiaApertura(initialDiaAp);
-        setDiaCierre(initialDiaCi);
+        setMesProceso("01");
+        setDiaApertura("01");
+        setDiaCierre("01");
       } catch (err) {
         console.error("Error inicializando fecha en Partes Viejos:", err);
       }
