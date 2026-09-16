@@ -1,7 +1,8 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import Notification from "./Notification";
+import HorizontalPicker from "./HorizontalPicker";
 
 const normalizeYearInput = (value: string) => value.replace(/\D/g, "").slice(0, 4);
 const normalizeUpper = (value: string) => value.toUpperCase();
@@ -42,10 +43,13 @@ export default function FormPartes() {
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   // --- ESTADOS PERSISTENTES (Sticky) ---
-  const [anio, setAnio] = useState("2021");
+  const [anio, setAnio] = useState("");
   const [mesProceso, setMesProceso] = useState("01");
   const [diaApertura, setDiaApertura] = useState("01");
   const [diaCierre, setDiaCierre] = useState("01");
+  const ultimoDiaAperturaRef = useRef("01");
+  const ultimoDiaCierreRef = useRef("01");
+  const isInitializedRef = useRef(false);
 
   // --- ESTADOS VARIABLES ---
   const [nExpediente, setNExpediente] = useState<number>(1);
@@ -85,12 +89,146 @@ export default function FormPartes() {
     setNExpediente(maxSequence + 1);
   };
 
+  // Inicializar fecha desde localStorage o desde el último registro de partes_viejas
+  useEffect(() => {
+    let active = true;
+
+    const initDate = async () => {
+      try {
+        const cached = localStorage.getItem("partes_viejas_fecha_config");
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (!active) return;
+          if (parsed.anio) setAnio(parsed.anio);
+          if (parsed.mesProceso) setMesProceso(parsed.mesProceso);
+          if (parsed.diaApertura) setDiaApertura(parsed.diaApertura);
+          if (parsed.diaCierre) setDiaCierre(parsed.diaCierre);
+          if (parsed.ultimoDiaApertura) ultimoDiaAperturaRef.current = parsed.ultimoDiaApertura;
+          if (parsed.ultimoDiaCierre) ultimoDiaCierreRef.current = parsed.ultimoDiaCierre;
+          isInitializedRef.current = true;
+          return;
+        }
+
+        // Consultar el último registro en partes_viejas
+        const { data } = await supabase
+          .from("partes_viejas")
+          .select("expediente, fecha_apertura, fecha_cierre")
+          .order("fecha_cierre", { ascending: false })
+          .limit(1);
+
+        if (!active) return;
+
+        let initialYear = "2024";
+        let initialMonth = "01";
+        let initialDiaAp = "01";
+        let initialDiaCi = "01";
+
+        if (data && data.length > 0) {
+          const row = data[0];
+          if (row.fecha_cierre) {
+            const parts = String(row.fecha_cierre).split("-");
+            if (parts.length === 3) {
+              initialYear = parts[0];
+              initialMonth = parts[1];
+              initialDiaCi = parts[2];
+            }
+          } else if (row.expediente) {
+            const match = String(row.expediente).match(/-(\d{4})$/);
+            if (match) initialYear = match[1];
+          }
+          if (row.fecha_apertura) {
+            const partsAp = String(row.fecha_apertura).split("-");
+            if (partsAp.length === 3) {
+              initialDiaAp = partsAp[2];
+            }
+          }
+        }
+
+        setAnio(initialYear);
+        setMesProceso(initialMonth);
+        setDiaApertura(initialDiaAp);
+        setDiaCierre(initialDiaCi);
+        ultimoDiaAperturaRef.current = initialDiaAp;
+        ultimoDiaCierreRef.current = initialDiaCi;
+
+        localStorage.setItem(
+          "partes_viejas_fecha_config",
+          JSON.stringify({
+            anio: initialYear,
+            mesProceso: initialMonth,
+            diaApertura: initialDiaAp,
+            diaCierre: initialDiaCi,
+            ultimoDiaApertura: initialDiaAp,
+            ultimoDiaCierre: initialDiaCi,
+          })
+        );
+      } catch (err) {
+        console.error("Error inicializando fecha en Partes Viejos:", err);
+      } finally {
+        if (active) isInitializedRef.current = true;
+      }
+    };
+
+    void initDate();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const saveDateConfig = (y: string, m: string, da: string, dc: string) => {
+    try {
+      localStorage.setItem(
+        "partes_viejas_fecha_config",
+        JSON.stringify({
+          anio: y,
+          mesProceso: m,
+          diaApertura: da,
+          diaCierre: dc,
+          ultimoDiaApertura: ultimoDiaAperturaRef.current,
+          ultimoDiaCierre: ultimoDiaCierreRef.current,
+        })
+      );
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleYearChange = (newYear: string) => {
+    const cleanYear = normalizeYearInput(newYear);
+    setAnio(cleanYear);
+    const restoredDiaAp = ultimoDiaAperturaRef.current || diaApertura;
+    const restoredDiaCi = ultimoDiaCierreRef.current || diaCierre;
+    setDiaApertura(restoredDiaAp);
+    setDiaCierre(restoredDiaCi);
+    saveDateConfig(cleanYear, mesProceso, restoredDiaAp, restoredDiaCi);
+  };
+
+  const handleMesChange = (newMonth: string) => {
+    setMesProceso(newMonth);
+    const restoredDiaAp = ultimoDiaAperturaRef.current || diaApertura;
+    const restoredDiaCi = ultimoDiaCierreRef.current || diaCierre;
+    setDiaApertura(restoredDiaAp);
+    setDiaCierre(restoredDiaCi);
+    saveDateConfig(anio, newMonth, restoredDiaAp, restoredDiaCi);
+  };
+
+  const handleDiaAperturaChange = (newDia: string) => {
+    setDiaApertura(newDia);
+    saveDateConfig(anio, mesProceso, newDia, diaCierre);
+  };
+
+  const handleDiaCierreChange = (newDia: string) => {
+    setDiaCierre(newDia);
+    saveDateConfig(anio, mesProceso, diaApertura, newDia);
+  };
+
   useEffect(() => {
     let active = true;
 
     const cargar = async () => {
       const anioNormalizado = normalizeYearInput(anio);
-      if (!active) return;
+      if (!anioNormalizado || !active) return;
       await obtenerSiguienteExpedientePorAnio(anioNormalizado);
     };
 
@@ -291,6 +429,11 @@ export default function FormPartes() {
       setNExpediente(proximoExpediente + 1);
       setPpUltimos10(""); setDetenidos(""); setDelito(""); setFojas("");
       setFiscaliaStatus("idle"); setFiscaliaResult(null);
+
+      // Persistir el último día guardado para futuras selecciones
+      ultimoDiaAperturaRef.current = diaApertura;
+      ultimoDiaCierreRef.current = diaCierre;
+      saveDateConfig(anioRegistro, mesProceso, diaApertura, diaCierre);
     }
   };
 
@@ -322,25 +465,43 @@ export default function FormPartes() {
           <div className="grid grid-cols-4 gap-2 bg-black/60 p-2 rounded-xl border border-white/5">
             <div className="space-y-0.5">
               <label className="text-[8px] font-bold text-white/30 uppercase">Año</label>
-              <input type="text" maxLength={4} value={anio} onChange={e => setAnio(normalizeYearInput(e.target.value))} className="w-full bg-white/5 border border-white/10 rounded-lg py-1 text-xs text-center text-white font-bold outline-none focus:border-indigo-500" />
+              <input
+                type="text"
+                maxLength={4}
+                value={anio}
+                onChange={e => handleYearChange(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-lg py-1 text-xs text-center text-white font-bold outline-none focus:border-indigo-500"
+              />
             </div>
             <div className="space-y-0.5">
               <label className="text-[8px] font-bold text-white/30 uppercase">Mes</label>
-              <select value={mesProceso} onChange={e => setMesProceso(e.target.value)} className="w-full bg-neutral-900 text-white border border-white/10 rounded-lg py-1 text-xs outline-none">
-                {["01","02","03","04","05","06","07","08","09","10","11","12"].map(m => <option key={m} value={m} className="bg-neutral-900 text-white">{m}</option>)}
-              </select>
+              <HorizontalPicker
+                value={mesProceso}
+                onChange={handleMesChange}
+                options={["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"]}
+                columns={6}
+                align="left"
+              />
             </div>
             <div className="space-y-0.5">
               <label className="text-[8px] font-bold text-indigo-400 uppercase">Día Apert.</label>
-              <select value={diaApertura} onChange={e => setDiaApertura(e.target.value)} className="w-full bg-neutral-900 text-white border border-white/10 rounded-lg py-1 text-xs outline-none">
-                {dias.map(d => <option key={d} value={d} className="bg-neutral-900 text-white">{d}</option>)}
-              </select>
+              <HorizontalPicker
+                value={diaApertura}
+                onChange={handleDiaAperturaChange}
+                options={dias}
+                columns={7}
+                align="center"
+              />
             </div>
             <div className="space-y-0.5">
               <label className="text-[8px] font-bold text-indigo-400 uppercase">Día Cierre</label>
-              <select value={diaCierre} onChange={e => setDiaCierre(e.target.value)} className="w-full bg-neutral-900 text-white border border-white/10 rounded-lg py-1 text-xs outline-none">
-                {dias.map(d => <option key={d} value={d} className="bg-neutral-900 text-white">{d}</option>)}
-              </select>
+              <HorizontalPicker
+                value={diaCierre}
+                onChange={handleDiaCierreChange}
+                options={dias}
+                columns={7}
+                align="right"
+              />
             </div>
           </div>
 
