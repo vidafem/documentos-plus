@@ -94,7 +94,7 @@ const initialState: FormState = {
 };
 
 const STORAGE_KEY_MES = "flagrancia_mes_ingreso_constante";
-const IF_PREFIX = "901018";
+const IF_PREFIX = "0901018";
 const COD_DISTRITO_PREFIX = "09D";
 const ZONA_CONSTANTE = "ZONA 8";
 const PROVINCIA_CONSTANTE = "DMG";
@@ -115,6 +115,10 @@ const MONTH_OPTIONS = [
 ];
 const COD_DISTRITO_OPTIONS = Array.from({ length: 10 }, (_, index) => String(index + 1).padStart(2, "0"));
 
+let cachedDelitosCatalogo: DelitoSuggestion[] | null = null;
+const normalizeDelitoSearch = (s: string) =>
+  (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
+
 const MONTH_TO_NUM: Record<string, string> = {
   ENERO: "01", FEBRERO: "02", MARZO: "03", ABRIL: "04",
   MAYO: "05", JUNIO: "06", JULIO: "07", AGOSTO: "08",
@@ -128,12 +132,37 @@ const contarDetenidos = (detenidoStr: string): number => {
   return personas.length;
 };
 
+const restarUnDiaFecha = (fechaStr: string): { anio: string; mes: string; dia: string } | null => {
+  const partes = (fechaStr || "").trim().split(/[-/]/);
+  if (partes.length !== 3) return null;
+  const y = parseInt(partes[0], 10);
+  const m = parseInt(partes[1], 10);
+  const d = parseInt(partes[2], 10);
+  if (isNaN(y) || isNaN(m) || isNaN(d)) return null;
+
+  const dateObj = new Date(Date.UTC(y, m - 1, d));
+  dateObj.setUTCDate(dateObj.getUTCDate() - 1);
+
+  return {
+    anio: String(dateObj.getUTCFullYear()),
+    mes: String(dateObj.getUTCMonth() + 1).padStart(2, "0"),
+    dia: String(dateObj.getUTCDate()).padStart(2, "0"),
+  };
+};
+
 export default function FormDelegacionesDiarias() {
   const [formData, setFormData] = useState<FormState>(initialState);
   const [isSaving, setIsSaving] = useState(false);
   const [notification, setNotification] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
   const [casoPj, setCasoPj] = useState(false);
   const [ifUnicidad, setIfUnicidad] = useState<"idle" | "unique" | "duplicate">("idle");
+  const [fiscaliaStatus, setFiscaliaStatus] = useState<"idle" | "loading" | "found" | "not_found">("idle");
+  const [fiscaliaResult, setFiscaliaResult] = useState<{
+    delito: string;
+    detenidos: string;
+    count: number;
+    fecha?: string;
+  } | null>(null);
   const [peritoSugerencias, setPeritoSugerencias] = useState<PeritoSuggestion[]>([]);
   const [delitoSugerencias, setDelitoSugerencias] = useState<DelitoSuggestion[]>([]);
   const [delitoActivoIndex, setDelitoActivoIndex] = useState(-1);
@@ -273,7 +302,7 @@ export default function FormDelegacionesDiarias() {
         const { data, error } = await supabase
           .from("FLAGRANCIA")
           .select("id")
-          .eq("IF", Number(ifCompletoSecuencial))
+          .eq("IF", ifCompletoSecuencial)
           .limit(1);
 
         if (!error) {
@@ -289,6 +318,50 @@ export default function FormDelegacionesDiarias() {
     }, 500);
 
     return () => clearTimeout(delayDebounce);
+  }, [formData.ifAnio, formData.ifSecuencial]);
+
+  // Consulta automática a Fiscalía al completar 15 dígitos (Noticia del Delito criterio 1)
+  useEffect(() => {
+    const anioNorm = formData.ifAnio.trim();
+    const secNorm = formData.ifSecuencial.trim();
+    if (anioNorm.length !== 4 || secNorm.length !== 6) {
+      setFiscaliaStatus("idle");
+      setFiscaliaResult(null);
+      return;
+    }
+
+    const fullNdd = `${IF_PREFIX}${anioNorm.slice(-2)}${secNorm}`;
+    if (fullNdd.length !== 15) {
+      setFiscaliaStatus("idle");
+      setFiscaliaResult(null);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setFiscaliaStatus("loading");
+      try {
+        const res = await fetch(`/api/consulta-fiscalia?criterio=1&valor=${encodeURIComponent(fullNdd)}`);
+        const json = await res.json();
+        if (json.success && json.found && (json.detenidos || json.delito)) {
+          setFiscaliaStatus("found");
+          setFiscaliaResult({
+            delito: json.delito || "",
+            detenidos: json.detenidos || "",
+            count: json.procesadosCount || 0,
+            fecha: json.fecha || "",
+          });
+        } else {
+          setFiscaliaStatus("not_found");
+          setFiscaliaResult(null);
+        }
+      } catch (err) {
+        console.error("Error consultando Fiscalía:", err);
+        setFiscaliaStatus("not_found");
+        setFiscaliaResult(null);
+      }
+    }, 600);
+
+    return () => clearTimeout(timer);
   }, [formData.ifAnio, formData.ifSecuencial]);
 
   const buscarPeritos = async (texto: string) => {
@@ -332,28 +405,40 @@ export default function FormDelegacionesDiarias() {
       tipoDelito: "",
     }));
 
-    if (texto.trim().length < 2) {
+    const term = normalizeDelitoSearch(texto);
+    if (term.length < 2) {
       setDelitoSugerencias([]);
       setDelitoActivoIndex(-1);
-      return;
+      return [];
     }
 
-    const { data, error } = await supabase
-      .from("delitos")
-      .select("DELITO, DELITO_TIPIFICADO_EN_DELEGACION, TIPO_DE_DELITO")
-      .ilike("DELITO", `%${texto}%`)
-      .limit(100);
-
-    if (error) {
-      console.error("Error cargando delitos:", error.message);
-      setDelitoSugerencias([]);
-      setDelitoActivoIndex(-1);
-      return;
+    if (!cachedDelitosCatalogo) {
+      const { data, error } = await supabase
+        .from("delitos")
+        .select("DELITO, DELITO_TIPIFICADO_EN_DELEGACION, TIPO_DE_DELITO")
+        .limit(1000);
+      if (!error && data) {
+        cachedDelitosCatalogo = data as DelitoSuggestion[];
+      }
     }
 
-    // Deduplicate by DELITO while keeping the full object
+    const catalogo = cachedDelitosCatalogo || [];
+    const matches = catalogo.filter((item) => {
+      const dNorm = normalizeDelitoSearch(item.DELITO || "");
+      const tipNorm = normalizeDelitoSearch(item.DELITO_TIPIFICADO_EN_DELEGACION || "");
+      return dNorm.includes(term) || tipNorm.includes(term);
+    });
+
+    matches.sort((a, b) => {
+      const aExact = normalizeDelitoSearch(a.DELITO) === term || normalizeDelitoSearch(a.DELITO_TIPIFICADO_EN_DELEGACION || "") === term;
+      const bExact = normalizeDelitoSearch(b.DELITO) === term || normalizeDelitoSearch(b.DELITO_TIPIFICADO_EN_DELEGACION || "") === term;
+      if (aExact && !bExact) return -1;
+      if (!aExact && bExact) return 1;
+      return a.DELITO.length - b.DELITO.length;
+    });
+
     const uniqueMap = new Map<string, DelitoSuggestion>();
-    ((data || []) as DelitoSuggestion[]).forEach((item) => {
+    matches.forEach((item) => {
       if (item.DELITO) {
         const clean = item.DELITO.trim();
         if (!uniqueMap.has(clean)) {
@@ -362,16 +447,10 @@ export default function FormDelegacionesDiarias() {
       }
     });
 
-    const sugerencias = Array.from(uniqueMap.values());
-    
-    // Sort by length of DELITO
-    sugerencias.sort((a, b) => a.DELITO.length - b.DELITO.length);
-
-    // Limit to top 15 matches
-    const suggestionsList = sugerencias.slice(0, 15);
-
+    const suggestionsList = Array.from(uniqueMap.values()).slice(0, 15);
     setDelitoSugerencias(suggestionsList);
     setDelitoActivoIndex(suggestionsList.length > 0 ? 0 : -1);
+    return suggestionsList;
   };
 
   const seleccionarDelito = (item: DelitoSuggestion) => {
@@ -383,6 +462,45 @@ export default function FormDelegacionesDiarias() {
     }));
     setDelitoSugerencias([]);
     setDelitoActivoIndex(-1);
+  };
+
+  const handleAutofillFiscalia = async () => {
+    if (!fiscaliaResult) return;
+
+    if (fiscaliaResult.detenidos) {
+      setFormData((prev) => ({
+        ...prev,
+        detenido: formatDetenidoInput(fiscaliaResult.detenidos),
+      }));
+    }
+
+    if (fiscaliaResult.fecha) {
+      const fechaMenosUno = restarUnDiaFecha(fiscaliaResult.fecha);
+      if (fechaMenosUno) {
+        setFormData((prev) => ({
+          ...prev,
+          fechaInfraccionAnio: fechaMenosUno.anio,
+          fechaInfraccionMes: fechaMenosUno.mes,
+          fechaInfraccionDia: fechaMenosUno.dia,
+        }));
+      }
+    }
+
+    if (fiscaliaResult.delito) {
+      const suggestions = await buscarDelitos(fiscaliaResult.delito);
+      const term = normalizeDelitoSearch(fiscaliaResult.delito);
+      const exactMatch = suggestions.find(
+        (s) =>
+          normalizeDelitoSearch(s.DELITO) === term ||
+          normalizeDelitoSearch(s.DELITO_TIPIFICADO_EN_DELEGACION || "") === term
+      );
+
+      if (exactMatch) {
+        seleccionarDelito(exactMatch);
+      } else if (suggestions.length > 0) {
+        seleccionarDelito(suggestions[0]);
+      }
+    }
   };
 
   const handleCodDistritoChange = async (suffix: string) => {
@@ -812,6 +930,8 @@ export default function FormDelegacionesDiarias() {
     setFiscaliasDisponibles([]);
     setCodFiscalSeleccionado("");
     setFiscalCodPorNumfis({});
+    setFiscaliaStatus("idle");
+    setFiscaliaResult(null);
 
     setFormData((prev) => {
       let nextAudicencia = "";
@@ -1294,7 +1414,43 @@ export default function FormDelegacionesDiarias() {
         </div>
 
         <div className="space-y-1 w-full">
-          <label className="text-[10px] font-bold text-white/40 uppercase">Detenido</label>
+          <div className="flex items-center justify-between min-h-[22px]">
+            <label className="text-[10px] font-bold text-white/40 uppercase">Detenido</label>
+            
+            {fiscaliaStatus === "loading" && (
+              <span className="flex items-center gap-1.5 text-[9px] text-cyan-300 font-bold uppercase tracking-wider animate-pulse">
+                <svg className="w-3 h-3 animate-spin text-cyan-400" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                </svg>
+                Consultando Fiscalía...
+              </span>
+            )}
+
+            {fiscaliaStatus === "found" && fiscaliaResult && (
+              <button
+                type="button"
+                onClick={handleAutofillFiscalia}
+                className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-300 border border-emerald-500/40 text-[9px] font-black uppercase tracking-wide transition-all shadow-[0_0_15px_rgba(16,185,129,0.35)] hover:scale-105 active:scale-95 cursor-pointer"
+                title="Clic para autorrellenar procesados y delito desde Fiscalía"
+              >
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <span>
+                  Fiscalía: {fiscaliaResult.count > 0 ? `${fiscaliaResult.count} Procesado(s)` : "Encontrado"} — Clic para rellenar
+                </span>
+              </button>
+            )}
+
+            {fiscaliaStatus === "not_found" && (
+              <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-red-500/10 text-red-300 border border-red-500/20 text-[9px] font-bold uppercase tracking-wide">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                Fiscalía: Sin registros (Ingreso manual)
+              </span>
+            )}
+          </div>
           <textarea
             value={formData.detenido}
             onChange={(e) => handleDetenidoChange(e.target.value)}

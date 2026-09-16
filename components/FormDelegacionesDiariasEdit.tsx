@@ -87,7 +87,7 @@ const initialState: FormState = {
 };
 
 const STORAGE_KEY_MES = "flagrancia_mes_ingreso_constante";
-const IF_PREFIX = "901018";
+const IF_PREFIX = "0901018";
 const COD_DISTRITO_PREFIX = "09D";
 const ZONA_CONSTANTE = "ZONA 8";
 const PROVINCIA_CONSTANTE = "DMG";
@@ -139,6 +139,24 @@ const splitDateParts = (value: unknown): { anio: string; mes: string; dia: strin
   };
 };
 
+const restarUnDiaFecha = (fechaStr: string): { anio: string; mes: string; dia: string } | null => {
+  const partes = (fechaStr || "").trim().split(/[-/]/);
+  if (partes.length !== 3) return null;
+  const y = parseInt(partes[0], 10);
+  const m = parseInt(partes[1], 10);
+  const d = parseInt(partes[2], 10);
+  if (isNaN(y) || isNaN(m) || isNaN(d)) return null;
+
+  const dateObj = new Date(Date.UTC(y, m - 1, d));
+  dateObj.setUTCDate(dateObj.getUTCDate() - 1);
+
+  return {
+    anio: String(dateObj.getUTCFullYear()),
+    mes: String(dateObj.getUTCMonth() + 1).padStart(2, "0"),
+    dia: String(dateObj.getUTCDate()).padStart(2, "0"),
+  };
+};
+
 const toDateTimeLocalValue = (value: unknown): string => {
   const txt = String(value || "").trim();
   if (!txt) return "";
@@ -157,9 +175,20 @@ const normalizeUnidadToNumfis = (value: unknown): string => {
 
 const mapRecordToFormState = (record: Record<string, unknown>): FormState => {
   const ifRaw = String(record["IF"] || "").replace(/\D/g, "");
-  const ifAnio2 = ifRaw.length >= 8 ? ifRaw.slice(6, 8) : "";
-  const ifAnio = ifAnio2 ? `20${ifAnio2}` : String(new Date().getFullYear());
-  const ifSecuencial = ifRaw.length > 8 ? ifRaw.slice(8, 14) : "";
+  let ifAnio = String(new Date().getFullYear());
+  let ifSecuencial = "";
+
+  if (ifRaw.startsWith("0901018") && ifRaw.length >= 15) {
+    ifAnio = `20${ifRaw.slice(7, 9)}`;
+    ifSecuencial = ifRaw.slice(9, 15);
+  } else if (ifRaw.startsWith("901018") && ifRaw.length >= 14) {
+    ifAnio = `20${ifRaw.slice(6, 8)}`;
+    ifSecuencial = ifRaw.slice(8, 14);
+  } else if (ifRaw.length >= 8) {
+    const ifAnio2 = ifRaw.slice(6, 8);
+    ifAnio = `20${ifAnio2}`;
+    ifSecuencial = ifRaw.slice(8, 14);
+  }
 
   const inf = splitDateParts(record["FECHA_DE_LA_INFRACIÓN_DELITO"]);
   const fDel = splitDateParts(record["F_DELEGACION"]);
@@ -225,6 +254,14 @@ export default function FormDelegacionesDiarias({
   const [fiscalSugerencias, setFiscalSugerencias] = useState<FiscalSuggestion[]>([]);
   const [fiscaliasDisponibles, setFiscaliasDisponibles] = useState<string[]>([]);
   const [codFiscalSeleccionado, setCodFiscalSeleccionado] = useState("");
+  const [conflictoReg, setConflictoReg] = useState<Record<string, unknown> | null>(null);
+  const [fiscaliaStatus, setFiscaliaStatus] = useState<"idle" | "loading" | "found" | "not_found">("idle");
+  const [fiscaliaResult, setFiscaliaResult] = useState<{
+    delito: string;
+    detenidos: string;
+    count: number;
+    fecha?: string;
+  } | null>(null);
   const [fiscalCodPorNumfis, setFiscalCodPorNumfis] = useState<Record<string, string>>({});
   const [mostrarModalNuevaFiscalia, setMostrarModalNuevaFiscalia] = useState(false);
   const [nuevaFiscaliaNumfis, setNuevaFiscaliaNumfis] = useState("");
@@ -376,7 +413,7 @@ export default function FormDelegacionesDiarias({
         let query = supabase
           .from("FLAGRANCIA")
           .select("id")
-          .eq("IF", Number(ifCompletoSecuencial));
+          .eq("IF", ifCompletoSecuencial);
 
         if (mode === "edit" && editId) {
           query = query.neq("id", editId);
@@ -398,6 +435,50 @@ export default function FormDelegacionesDiarias({
 
     return () => clearTimeout(delayDebounce);
   }, [formData.ifAnio, formData.ifSecuencial, mode, editId]);
+
+  // Consulta automática a Fiscalía al completar 15 dígitos
+  useEffect(() => {
+    const anioNorm = formData.ifAnio.trim();
+    const secNorm = formData.ifSecuencial.trim();
+    if (anioNorm.length !== 4 || secNorm.length !== 6) {
+      setFiscaliaStatus("idle");
+      setFiscaliaResult(null);
+      return;
+    }
+
+    const fullNdd = `${IF_PREFIX}${anioNorm.slice(-2)}${secNorm}`;
+    if (fullNdd.length !== 15) {
+      setFiscaliaStatus("idle");
+      setFiscaliaResult(null);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setFiscaliaStatus("loading");
+      try {
+        const res = await fetch(`/api/consulta-fiscalia?criterio=1&valor=${encodeURIComponent(fullNdd)}`);
+        const json = await res.json();
+        if (json.success && json.found && (json.detenidos || json.delito)) {
+          setFiscaliaStatus("found");
+          setFiscaliaResult({
+            delito: json.delito || "",
+            detenidos: json.detenidos || "",
+            count: json.procesadosCount || 0,
+            fecha: json.fecha || "",
+          });
+        } else {
+          setFiscaliaStatus("not_found");
+          setFiscaliaResult(null);
+        }
+      } catch (err) {
+        console.error("Error consultando Fiscalía:", err);
+        setFiscaliaStatus("not_found");
+        setFiscaliaResult(null);
+      }
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [formData.ifAnio, formData.ifSecuencial]);
 
   const handleChange = (key: keyof FormState, value: string) => {
     if (key === "mesIngresoDisposicionesFiscales") {
@@ -511,6 +592,34 @@ export default function FormDelegacionesDiarias({
       tipoDelito: item.TIPO_DE_DELITO || "",
     }));
     setDelitoSugerencias([]);
+    setDelitoActivoIndex(-1);
+  };
+
+  const handleAutofillFiscalia = async () => {
+    if (!fiscaliaResult) return;
+
+    if (fiscaliaResult.detenidos) {
+      setFormData((prev) => ({
+        ...prev,
+        detenido: formatDetenidoInput(fiscaliaResult.detenidos),
+      }));
+    }
+
+    if (fiscaliaResult.fecha) {
+      const fechaMenosUno = restarUnDiaFecha(fiscaliaResult.fecha);
+      if (fechaMenosUno) {
+        setFormData((prev) => ({
+          ...prev,
+          fechaInfraccionAnio: fechaMenosUno.anio,
+          fechaInfraccionMes: fechaMenosUno.mes,
+          fechaInfraccionDia: fechaMenosUno.dia,
+        }));
+      }
+    }
+
+    if (fiscaliaResult.delito) {
+      await buscarDelitos(fiscaliaResult.delito);
+    }
   };
 
   const handleCodDistritoChange = async (suffix: string) => {
@@ -1274,7 +1383,43 @@ export default function FormDelegacionesDiarias({
         </div>
 
         <div className="space-y-1">
-          <label className="text-[10px] font-bold text-white/40 uppercase">Detenido</label>
+          <div className="flex items-center justify-between min-h-[22px]">
+            <label className="text-[10px] font-bold text-white/40 uppercase">Detenido</label>
+            
+            {fiscaliaStatus === "loading" && (
+              <span className="flex items-center gap-1.5 text-[9px] text-cyan-300 font-bold uppercase tracking-wider animate-pulse">
+                <svg className="w-3 h-3 animate-spin text-cyan-400" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                </svg>
+                Consultando Fiscalía...
+              </span>
+            )}
+
+            {fiscaliaStatus === "found" && fiscaliaResult && (
+              <button
+                type="button"
+                onClick={handleAutofillFiscalia}
+                className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-300 border border-emerald-500/40 text-[9px] font-black uppercase tracking-wide transition-all shadow-[0_0_15px_rgba(16,185,129,0.35)] hover:scale-105 active:scale-95 cursor-pointer"
+                title="Clic para autorrellenar procesados y delito desde Fiscalía"
+              >
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <span>
+                  Fiscalía: {fiscaliaResult.count > 0 ? `${fiscaliaResult.count} Procesado(s)` : "Encontrado"} — Clic para rellenar
+                </span>
+              </button>
+            )}
+
+            {fiscaliaStatus === "not_found" && (
+              <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-red-500/10 text-red-300 border border-red-500/20 text-[9px] font-bold uppercase tracking-wide">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                Fiscalía: Sin registros (Ingreso manual)
+              </span>
+            )}
+          </div>
           <textarea
             value={formData.detenido}
             onChange={(e) => handleDetenidoChange(e.target.value)}
