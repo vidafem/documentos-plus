@@ -258,34 +258,54 @@ export default function DashboardOverview() {
   const monthlyCacheRef = useRef<Record<string, MonthlyDelegacionesStatus>>({});
 
   const fetchYearsForSource = useCallback(async (table: SourceConfig["table"] | "FLAGRANCIA", column: string): Promise<string[]> => {
-    const PAGE_SIZE = 1000;
-    let from = 0;
-    const years = new Set<string>();
+    try {
+      const [maxRes, minRes] = await Promise.all([
+        supabase
+          .from(table)
+          .select(column)
+          .not(column, "is", null)
+          .order(column, { ascending: false })
+          .limit(1),
+        supabase
+          .from(table)
+          .select(column)
+          .not(column, "is", null)
+          .order(column, { ascending: true })
+          .limit(1),
+      ]);
 
-    while (true) {
-      const to = from + PAGE_SIZE - 1;
-      const { data, error } = await supabase
-        .from(table)
-        .select(column)
-        .not(column, "is", null)
-        .order(column, { ascending: false })
-        .range(from, to);
+      let maxYear = Number(CURRENT_YEAR);
+      let minYear = Number(CURRENT_YEAR);
 
-      if (error) break;
+      const maxVal = (maxRes.data as Array<Record<string, unknown>> | null)?.[0]?.[column];
+      const minVal = (minRes.data as Array<Record<string, unknown>> | null)?.[0]?.[column];
 
-      const chunk = (((data || []) as unknown[]) as Array<Record<string, unknown>>);
-      chunk.forEach((row) => {
-        const normalized = normalizeDateValue(row[column]);
-        const year = normalized.split("-")[0] || "";
-        if (/^\d{4}$/.test(year)) years.add(year);
-      });
+      if (maxVal) {
+        const parsedMax = Number(normalizeDateValue(maxVal).split("-")[0]);
+        if (Number.isFinite(parsedMax) && parsedMax > 1900 && parsedMax < 2100) {
+          maxYear = Math.max(maxYear, parsedMax);
+        }
+      }
+      if (minVal) {
+        const parsedMin = Number(normalizeDateValue(minVal).split("-")[0]);
+        if (Number.isFinite(parsedMin) && parsedMin > 1900 && parsedMin < 2100) {
+          minYear = parsedMin;
+        }
+      }
 
-      if (chunk.length < PAGE_SIZE) break;
-      from += PAGE_SIZE;
+      if (minYear > maxYear) {
+        minYear = maxYear;
+      }
+
+      const generatedYears: string[] = [];
+      for (let y = maxYear; y >= minYear; y--) {
+        generatedYears.push(String(y));
+      }
+
+      return generatedYears.length > 0 ? generatedYears : [CURRENT_YEAR];
+    } catch {
+      return [CURRENT_YEAR];
     }
-
-    const sorted = Array.from(years).sort((a, b) => Number(b) - Number(a));
-    return sorted.length > 0 ? sorted : [CURRENT_YEAR];
   }, []);
 
   const fetchStatusForYear = useCallback(async (source: SourceConfig, year: string): Promise<SourceStatus> => {

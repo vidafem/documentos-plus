@@ -55,6 +55,8 @@ export default function FormPartesNuevo() {
   const [fojas, setFojas] = useState("");
   const [ppUnicidad, setPpUnicidad] = useState<"idle" | "unique" | "duplicate">("idle");
   const [sugerencias, setSugerencias] = useState<{ delito: string }[]>([]);
+  const [fiscaliaStatus, setFiscaliaStatus] = useState<"idle" | "loading" | "found" | "not_found">("idle");
+  const [fiscaliaResult, setFiscaliaResult] = useState<{ delito: string; detenidos: string; count: number } | null>(null);
 
   const obtenerSiguienteExpedientePorAnio = async (anioSeleccionado: string) => {
     if (anioSeleccionado.length !== 4) {
@@ -127,6 +129,53 @@ export default function FormPartesNuevo() {
 
     return () => clearTimeout(delayDebounce);
   }, [anio, mesProceso, diaCierre, ppUltimos10]);
+
+  useEffect(() => {
+    const anioNorm = normalizeYearInput(anio);
+    const cleanedDigits = ppUltimos10.replace(/\D/g, "");
+    if (anioNorm.length !== 4 || cleanedDigits.length < 8) {
+      setFiscaliaStatus("idle");
+      setFiscaliaResult(null);
+      return;
+    }
+
+    const fullOficio = `${anioNorm}${mesProceso}${diaCierre.padStart(2, "0")}${cleanedDigits}`;
+
+    const timer = setTimeout(async () => {
+      setFiscaliaStatus("loading");
+      try {
+        const res = await fetch(`/api/consulta-fiscalia?oficio=${encodeURIComponent(fullOficio)}`);
+        const json = await res.json();
+        if (json.success && json.found && (json.detenidos || json.delito)) {
+          setFiscaliaStatus("found");
+          setFiscaliaResult({
+            delito: json.delito || "",
+            detenidos: json.detenidos || "",
+            count: json.procesadosCount || 0,
+          });
+        } else {
+          setFiscaliaStatus("not_found");
+          setFiscaliaResult(null);
+        }
+      } catch (err) {
+        console.error("Error consultando Fiscalía:", err);
+        setFiscaliaStatus("not_found");
+        setFiscaliaResult(null);
+      }
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [anio, mesProceso, diaCierre, ppUltimos10]);
+
+  const handleAutofillFiscalia = () => {
+    if (!fiscaliaResult) return;
+    if (fiscaliaResult.detenidos) {
+      setDetenidos(normalizeUpper(fiscaliaResult.detenidos));
+    }
+    if (fiscaliaResult.delito) {
+      void buscarDelitos(fiscaliaResult.delito);
+    }
+  };
 
   // 2. BUSCADOR DE DELITOS
   const buscarDelitos = async (texto: string) => {
@@ -247,6 +296,8 @@ export default function FormPartesNuevo() {
       setDetenidos("");
       setDelito("");
       setFojas("");
+      setFiscaliaStatus("idle");
+      setFiscaliaResult(null);
     }
   };
 
@@ -317,8 +368,44 @@ export default function FormPartesNuevo() {
           </div>
 
           {/* FILA 3: DETENIDOS */}
-          <div className="space-y-0.5">
-            <label className="text-[8px] font-bold text-white/30 uppercase">Detenidos</label>
+          <div className="space-y-1">
+            <div className="flex items-center justify-between min-h-[22px]">
+              <label className="text-[8px] font-bold text-white/30 uppercase">Detenidos</label>
+              
+              {fiscaliaStatus === "loading" && (
+                <span className="flex items-center gap-1.5 text-[9px] text-cyan-300 font-bold uppercase tracking-wider animate-pulse">
+                  <svg className="w-3 h-3 animate-spin text-cyan-400" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                  </svg>
+                  Consultando Fiscalía...
+                </span>
+              )}
+
+              {fiscaliaStatus === "found" && fiscaliaResult && (
+                <button
+                  type="button"
+                  onClick={handleAutofillFiscalia}
+                  className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-300 border border-emerald-500/40 text-[9px] font-black uppercase tracking-wide transition-all shadow-[0_0_15px_rgba(16,185,129,0.35)] hover:scale-105 active:scale-95 cursor-pointer"
+                  title="Clic para autorrellenar detenidos y consultar delito en la base de datos"
+                >
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  <span>
+                    Fiscalía: {fiscaliaResult.count > 0 ? `${fiscaliaResult.count} Procesado(s)` : "Encontrado"} — Clic para rellenar
+                  </span>
+                </button>
+              )}
+
+              {fiscaliaStatus === "not_found" && (
+                <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-red-500/10 text-red-300 border border-red-500/20 text-[9px] font-bold uppercase tracking-wide">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                  Fiscalía: Sin registros (Ingreso manual)
+                </span>
+              )}
+            </div>
             <textarea required value={detenidos} onChange={(e) => setDetenidos(normalizeUpper(e.target.value))} onKeyDown={handleDetenidosKeyDown} className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white outline-none focus:border-indigo-500 h-14 resize-none custom-scrollbar" placeholder="NOMBRES DE LOS DETENIDOS..." />
           </div>
 

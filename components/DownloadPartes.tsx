@@ -82,39 +82,60 @@ export default function DownloadPartes({ sourceTable = "PARTES" }: DownloadParte
     let active = true;
 
     const loadYears = async () => {
-      const years = new Set<string>();
-      const PAGE_SIZE = 1000;
-      let from = 0;
-
-      while (true) {
-        const to = from + PAGE_SIZE - 1;
-        const { data, error } = await supabase
-          .from(sourceTable)
-          .select("fecha_cierre")
-          .not("fecha_cierre", "is", null)
-          .order("fecha_cierre", { ascending: false })
-          .range(from, to);
-
-        if (error) break;
-
-        const chunk = (data || []) as ParteRegistro[];
-        chunk.forEach((row) => {
-          const normalized = normalizeDateValue(String(row.fecha_cierre || ""));
-          const year = normalized.split("-")[0] || "";
-          if (/^\d{4}$/.test(year)) years.add(year);
-        });
-
-        if (chunk.length < PAGE_SIZE) break;
-        from += PAGE_SIZE;
-      }
-
-      const sorted = Array.from(years).sort((a, b) => Number(b) - Number(a));
       const fallbackYear = String(new Date().getFullYear());
-      const finalYears = sorted.length > 0 ? sorted : [fallbackYear];
+      try {
+        const [maxRes, minRes] = await Promise.all([
+          supabase
+            .from(sourceTable)
+            .select("fecha_cierre")
+            .not("fecha_cierre", "is", null)
+            .order("fecha_cierre", { ascending: false })
+            .limit(1),
+          supabase
+            .from(sourceTable)
+            .select("fecha_cierre")
+            .not("fecha_cierre", "is", null)
+            .order("fecha_cierre", { ascending: true })
+            .limit(1),
+        ]);
 
-      if (!active) return;
-      setAniosDisponibles(finalYears);
-      setFiltroYear((prev) => prev || finalYears[0]);
+        let maxYear = Number(fallbackYear);
+        let minYear = Number(fallbackYear);
+
+        const maxVal = (((maxRes.data || []) as unknown) as ParteRegistro[])[0]?.fecha_cierre;
+        const minVal = (((minRes.data || []) as unknown) as ParteRegistro[])[0]?.fecha_cierre;
+
+        if (maxVal) {
+          const parsedMax = Number(normalizeDateValue(String(maxVal)).split("-")[0]);
+          if (Number.isFinite(parsedMax) && parsedMax > 1900 && parsedMax < 2100) {
+            maxYear = Math.max(maxYear, parsedMax);
+          }
+        }
+        if (minVal) {
+          const parsedMin = Number(normalizeDateValue(String(minVal)).split("-")[0]);
+          if (Number.isFinite(parsedMin) && parsedMin > 1900 && parsedMin < 2100) {
+            minYear = parsedMin;
+          }
+        }
+
+        if (minYear > maxYear) {
+          minYear = maxYear;
+        }
+
+        const generatedYears: string[] = [];
+        for (let y = maxYear; y >= minYear; y--) {
+          generatedYears.push(String(y));
+        }
+
+        const finalYears = generatedYears.length > 0 ? generatedYears : [fallbackYear];
+
+        if (!active) return;
+        setAniosDisponibles(finalYears);
+        setFiltroYear((prev) => prev || finalYears[0]);
+      } catch {
+        if (!active) return;
+        setAniosDisponibles([fallbackYear]);
+      }
     };
 
     void loadYears();

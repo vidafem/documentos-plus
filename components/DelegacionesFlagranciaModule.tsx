@@ -491,11 +491,17 @@ export const syncDelegacionesFromFlagranciaGlobal = async (selectedYearNum: numb
 
   while (true) {
     const to = from + PAGE_SIZE - 1;
-    const { data, error } = await supabase
+    let query = supabase
       .from("FLAGRANCIA")
       .select("*")
       .order("id", { ascending: true })
       .range(from, to);
+
+    if (selectedYearNum) {
+      query = query.gte("F_RECEPCION", `${selectedYearNum}-01-01`);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       throw new Error(`Error leyendo FLAGRANCIA: ${error.message}`);
@@ -627,26 +633,50 @@ export default function DelegacionesFlagranciaModule() {
       const PAGE_SIZE = 1000;
 
       const collectYears = async (table: "FLAGRANCIA" | "DELEGACIONES", column: string) => {
-        let from = 0;
-        while (true) {
-          const to = from + PAGE_SIZE - 1;
-          const { data, error } = await supabase
-            .from(table)
-            .select(column)
-            .not(column, "is", null)
-            .range(from, to);
+        try {
+          const [maxRes, minRes] = await Promise.all([
+            supabase
+              .from(table)
+              .select(column)
+              .not(column, "is", null)
+              .order(column, { ascending: false })
+              .limit(1),
+            supabase
+              .from(table)
+              .select(column)
+              .not(column, "is", null)
+              .order(column, { ascending: true })
+              .limit(1),
+          ]);
 
-          if (error) break;
+          const maxVal = (((maxRes.data || []) as unknown) as GenericRow[])[0]?.[column];
+          const minVal = (((minRes.data || []) as unknown) as GenericRow[])[0]?.[column];
 
-          const chunk = ((data || []) as unknown[]) as GenericRow[];
-          chunk.forEach((row) => {
-            const normalized = normalizeDateValue(toText(row[column]));
-            const year = normalized.split("-")[0] || "";
-            if (/^\d{4}$/.test(year)) years.add(year);
-          });
+          let maxYear = BASE_YEAR;
+          let minYear = BASE_YEAR;
 
-          if (chunk.length < PAGE_SIZE) break;
-          from += PAGE_SIZE;
+          if (maxVal) {
+            const parsedMax = Number(normalizeDateValue(toText(maxVal)).split("-")[0]);
+            if (Number.isFinite(parsedMax) && parsedMax > 1900 && parsedMax < 2100) {
+              maxYear = Math.max(maxYear, parsedMax);
+            }
+          }
+          if (minVal) {
+            const parsedMin = Number(normalizeDateValue(toText(minVal)).split("-")[0]);
+            if (Number.isFinite(parsedMin) && parsedMin > 1900 && parsedMin < 2100) {
+              minYear = parsedMin;
+            }
+          }
+
+          if (minYear > maxYear) {
+            minYear = maxYear;
+          }
+
+          for (let y = minYear; y <= maxYear; y++) {
+            years.add(String(y));
+          }
+        } catch {
+          years.add(String(BASE_YEAR));
         }
       };
 
