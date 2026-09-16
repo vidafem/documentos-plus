@@ -48,9 +48,6 @@ export default function FormPartesNuevo() {
   const [mesProceso, setMesProceso] = useState("01");
   const [diaApertura, setDiaApertura] = useState("01");
   const [diaCierre, setDiaCierre] = useState("01");
-  const ultimoDiaAperturaRef = useRef("01");
-  const ultimoDiaCierreRef = useRef("01");
-  const isInitializedRef = useRef(false);
 
   // --- ESTADOS VARIABLES ---
   const [nExpediente, setNExpediente] = useState<number>(1);
@@ -90,26 +87,61 @@ export default function FormPartesNuevo() {
     setNExpediente(maxSequence + 1);
   };
 
-  // Inicializar fecha desde localStorage o desde el último registro de PARTES
+  // Consultar en la base de datos la última fecha registrada para ese año y mes específicos
+  const obtenerUltimosDiasPorMesYAnio = async (targetAnio: string, targetMes: string) => {
+    const anioNorm = normalizeYearInput(targetAnio);
+    const mesNorm = targetMes.padStart(2, "0");
+    if (anioNorm.length !== 4 || !mesNorm) return;
+
+    try {
+      const anioNum = Number(anioNorm);
+      const mesNum = Number(mesNorm);
+      const ultimoDiaMes = new Date(anioNum, mesNum, 0).getDate();
+      const startDate = `${anioNorm}-${mesNorm}-01`;
+      const endDate = `${anioNorm}-${mesNorm}-${String(ultimoDiaMes).padStart(2, "0")}`;
+
+      const { data, error } = await supabase
+        .from("PARTES")
+        .select("fecha_apertura, fecha_cierre")
+        .gte("fecha_cierre", startDate)
+        .lte("fecha_cierre", endDate)
+        .order("fecha_cierre", { ascending: false })
+        .limit(1);
+
+      if (!error && data && data.length > 0) {
+        const row = data[0];
+        let diaCi = "01";
+        let diaAp = "01";
+
+        if (row.fecha_cierre) {
+          const partsCi = String(row.fecha_cierre).split("-");
+          if (partsCi.length === 3) diaCi = partsCi[2];
+        }
+        if (row.fecha_apertura) {
+          const partsAp = String(row.fecha_apertura).split("-");
+          if (partsAp.length === 3) diaAp = partsAp[2];
+        } else {
+          diaAp = diaCi;
+        }
+
+        setDiaApertura(diaAp);
+        setDiaCierre(diaCi);
+      } else {
+        // Si no hay registros en ese mes y año, por defecto 01
+        setDiaApertura("01");
+        setDiaCierre("01");
+      }
+    } catch (err) {
+      console.error("Error consultando últimos días del mes en PARTES:", err);
+    }
+  };
+
+  // Inicializar año automáticamente desde el último registro de PARTES
   useEffect(() => {
     let active = true;
 
     const initDate = async () => {
       try {
-        const cached = localStorage.getItem("partes_nuevo_fecha_config");
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (!active) return;
-          if (parsed.anio) setAnio(parsed.anio);
-          if (parsed.mesProceso) setMesProceso(parsed.mesProceso);
-          if (parsed.diaApertura) setDiaApertura(parsed.diaApertura);
-          if (parsed.diaCierre) setDiaCierre(parsed.diaCierre);
-          if (parsed.ultimoDiaApertura) ultimoDiaAperturaRef.current = parsed.ultimoDiaApertura;
-          if (parsed.ultimoDiaCierre) ultimoDiaCierreRef.current = parsed.ultimoDiaCierre;
-          isInitializedRef.current = true;
-          return;
-        }
-
         // Consultar el último registro en PARTES
         const { data } = await supabase
           .from("PARTES")
@@ -149,24 +181,8 @@ export default function FormPartesNuevo() {
         setMesProceso(initialMonth);
         setDiaApertura(initialDiaAp);
         setDiaCierre(initialDiaCi);
-        ultimoDiaAperturaRef.current = initialDiaAp;
-        ultimoDiaCierreRef.current = initialDiaCi;
-
-        localStorage.setItem(
-          "partes_nuevo_fecha_config",
-          JSON.stringify({
-            anio: initialYear,
-            mesProceso: initialMonth,
-            diaApertura: initialDiaAp,
-            diaCierre: initialDiaCi,
-            ultimoDiaApertura: initialDiaAp,
-            ultimoDiaCierre: initialDiaCi,
-          })
-        );
       } catch (err) {
         console.error("Error inicializando fecha en Partes:", err);
-      } finally {
-        if (active) isInitializedRef.current = true;
       }
     };
 
@@ -177,51 +193,25 @@ export default function FormPartesNuevo() {
     };
   }, []);
 
-  const saveDateConfig = (y: string, m: string, da: string, dc: string) => {
-    try {
-      localStorage.setItem(
-        "partes_nuevo_fecha_config",
-        JSON.stringify({
-          anio: y,
-          mesProceso: m,
-          diaApertura: da,
-          diaCierre: dc,
-          ultimoDiaApertura: ultimoDiaAperturaRef.current,
-          ultimoDiaCierre: ultimoDiaCierreRef.current,
-        })
-      );
-    } catch {
-      // ignore
+  const handleYearChange = async (newYear: string) => {
+    const cleanYear = normalizeYearInput(newYear);
+    setAnio(cleanYear);
+    if (cleanYear.length === 4) {
+      await obtenerUltimosDiasPorMesYAnio(cleanYear, mesProceso);
     }
   };
 
-  const handleYearChange = (newYear: string) => {
-    const cleanYear = normalizeYearInput(newYear);
-    setAnio(cleanYear);
-    const restoredDiaAp = ultimoDiaAperturaRef.current || diaApertura;
-    const restoredDiaCi = ultimoDiaCierreRef.current || diaCierre;
-    setDiaApertura(restoredDiaAp);
-    setDiaCierre(restoredDiaCi);
-    saveDateConfig(cleanYear, mesProceso, restoredDiaAp, restoredDiaCi);
-  };
-
-  const handleMesChange = (newMonth: string) => {
+  const handleMesChange = async (newMonth: string) => {
     setMesProceso(newMonth);
-    const restoredDiaAp = ultimoDiaAperturaRef.current || diaApertura;
-    const restoredDiaCi = ultimoDiaCierreRef.current || diaCierre;
-    setDiaApertura(restoredDiaAp);
-    setDiaCierre(restoredDiaCi);
-    saveDateConfig(anio, newMonth, restoredDiaAp, restoredDiaCi);
+    await obtenerUltimosDiasPorMesYAnio(anio, newMonth);
   };
 
   const handleDiaAperturaChange = (newDia: string) => {
     setDiaApertura(newDia);
-    saveDateConfig(anio, mesProceso, newDia, diaCierre);
   };
 
   const handleDiaCierreChange = (newDia: string) => {
     setDiaCierre(newDia);
-    saveDateConfig(anio, mesProceso, diaApertura, newDia);
   };
 
   useEffect(() => {
@@ -436,11 +426,6 @@ export default function FormPartesNuevo() {
       setFojas("");
       setFiscaliaStatus("idle");
       setFiscaliaResult(null);
-
-      // Persistir el último día guardado para futuras selecciones
-      ultimoDiaAperturaRef.current = diaApertura;
-      ultimoDiaCierreRef.current = diaCierre;
-      saveDateConfig(anioRegistro, mesProceso, diaApertura, diaCierre);
     }
   };
 
