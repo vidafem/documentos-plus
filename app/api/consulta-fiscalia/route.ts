@@ -57,8 +57,8 @@ function decompressStream(res: http.IncomingMessage): Promise<string> {
 function fetchWithSession(valor: string, criterioNumber: number = 6): Promise<SiafResponse> {
   return new Promise((resolve, reject) => {
     const timeoutTimer = setTimeout(() => {
-      reject(new Error("Tiempo de espera agotado al consultar la Fiscalía (Timeout 12s)"));
-    }, 12000);
+      reject(new Error("Tiempo de espera agotado al consultar la Fiscalía (Timeout 15s)"));
+    }, 15000);
 
     const getReq = https.get(
       MAIN_URL,
@@ -155,6 +155,59 @@ function fetchWithSession(valor: string, criterioNumber: number = 6): Promise<Si
   });
 }
 
+async function fetchWithScrapfly(valor: string, criterioNumber: number, apiKey: string): Promise<SiafResponse> {
+  const postData = querystring.stringify({
+    tipo: "buscar_general",
+    criterio: criterioNumber,
+    valor: valor,
+  });
+
+  const scrapflyUrl = "https://api.scrapfly.io/scrape";
+  const payload = {
+    key: apiKey,
+    url: AJAX_URL,
+    method: "POST",
+    body: postData,
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+      "X-Requested-With": "XMLHttpRequest",
+      Referer: MAIN_URL,
+      Origin: "https://www.gestiondefiscalias.gob.ec",
+      Accept: "application/json, text/javascript, */*; q=0.01",
+    },
+    asp: true,
+  };
+
+  const res = await fetch(scrapflyUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Error en Scrapfly (${res.status}): ${errText}`);
+  }
+
+  const data = await res.json();
+  const rawContent = data?.result?.content;
+  if (!rawContent) {
+    throw new Error("Scrapfly no devolvió contenido de la Fiscalía.");
+  }
+
+  return JSON.parse(rawContent) as SiafResponse;
+}
+
+async function fetchWithCustomProxy(valor: string, criterioNumber: number, proxyUrl: string): Promise<SiafResponse> {
+  const separator = proxyUrl.includes("?") ? "&" : "?";
+  const url = `${proxyUrl}${separator}criterio=${criterioNumber}&valor=${encodeURIComponent(valor)}`;
+  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  if (!res.ok) {
+    throw new Error(`Error en Proxy (${res.status})`);
+  }
+  return (await res.json()) as SiafResponse;
+}
+
 interface CacheEntry {
   data: Record<string, unknown>;
   timestamp: number;
@@ -212,7 +265,27 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const siafData = await fetchWithSession(valor, criterioNumber);
+    let siafData: SiafResponse;
+    const scrapflyKey = process.env.SCRAPFLY_API_KEY;
+    const customProxy = process.env.FISCALIA_PROXY_URL;
+
+    if (scrapflyKey) {
+      try {
+        siafData = await fetchWithScrapfly(valor, criterioNumber, scrapflyKey);
+      } catch (scrapflyErr) {
+        console.warn("Fallo Scrapfly, probando conexión directa:", scrapflyErr);
+        siafData = await fetchWithSession(valor, criterioNumber);
+      }
+    } else if (customProxy) {
+      try {
+        siafData = await fetchWithCustomProxy(valor, criterioNumber, customProxy);
+      } catch (proxyErr) {
+        console.warn("Fallo Custom Proxy, probando conexión directa:", proxyErr);
+        siafData = await fetchWithSession(valor, criterioNumber);
+      }
+    } else {
+      siafData = await fetchWithSession(valor, criterioNumber);
+    }
 
     if (siafData.error || !siafData.cabecera || siafData.cabecera.length === 0) {
       const notFoundPayload = {

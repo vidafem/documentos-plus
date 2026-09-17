@@ -86,7 +86,7 @@ export default function ModalBusquedaCedulaFiscalia({
         setApplyDateMap(initialMap);
       } else {
         setErrorMessage(
-          res?.message || "No se encontraron denuncias ni causas para esta cédula en el sistema de la Fiscalía."
+          res?.message || res?.error || "No se encontraron denuncias ni causas para esta cédula en el sistema de la Fiscalía."
         );
       }
     } catch (err) {
