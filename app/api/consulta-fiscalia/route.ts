@@ -162,26 +162,26 @@ async function fetchWithScrapfly(valor: string, criterioNumber: number, apiKey: 
     valor: valor,
   });
 
-  const scrapflyUrl = "https://api.scrapfly.io/scrape";
-  const payload = {
+  const params = new URLSearchParams({
     key: apiKey,
     url: AJAX_URL,
     method: "POST",
-    body: postData,
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-      "X-Requested-With": "XMLHttpRequest",
-      Referer: MAIN_URL,
-      Origin: "https://www.gestiondefiscalias.gob.ec",
-      Accept: "application/json, text/javascript, */*; q=0.01",
-    },
-    asp: true,
-  };
+    asp: "true",
+    "headers[Content-Type]": "application/x-www-form-urlencoded; charset=UTF-8",
+    "headers[X-Requested-With]": "XMLHttpRequest",
+    "headers[Referer]": MAIN_URL,
+    "headers[Origin]": "https://www.gestiondefiscalias.gob.ec",
+    "headers[Accept]": "application/json, text/javascript, */*; q=0.01",
+  });
+
+  const scrapflyUrl = `https://api.scrapfly.io/scrape?${params.toString()}`;
 
   const res = await fetch(scrapflyUrl, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: postData,
   });
 
   if (!res.ok) {
@@ -274,14 +274,22 @@ export async function GET(request: NextRequest) {
         siafData = await fetchWithScrapfly(valor, criterioNumber, scrapflyKey);
       } catch (scrapflyErr) {
         console.warn("Fallo Scrapfly, probando conexión directa:", scrapflyErr);
-        siafData = await fetchWithSession(valor, criterioNumber);
+        try {
+          siafData = await fetchWithSession(valor, criterioNumber);
+        } catch {
+          throw scrapflyErr;
+        }
       }
     } else if (customProxy) {
       try {
         siafData = await fetchWithCustomProxy(valor, criterioNumber, customProxy);
       } catch (proxyErr) {
         console.warn("Fallo Custom Proxy, probando conexión directa:", proxyErr);
-        siafData = await fetchWithSession(valor, criterioNumber);
+        try {
+          siafData = await fetchWithSession(valor, criterioNumber);
+        } catch {
+          throw proxyErr;
+        }
       }
     } else {
       siafData = await fetchWithSession(valor, criterioNumber);
