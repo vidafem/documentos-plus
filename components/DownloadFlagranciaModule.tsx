@@ -182,6 +182,18 @@ export default function DownloadFlagranciaModule() {
 
   const toSlashDate = (isoDate: string) => isoDate ? isoDate.replace(/-/g, "/") : "";
 
+  const handleSetFechasInicioFin = () => {
+    setInicioMonth("01");
+    setInicioDay("01");
+    setFinMonth("12");
+    setFinDay("31");
+    if (inicioYear && !finYear) {
+      setFinYear(inicioYear);
+    } else if (finYear && !inicioYear) {
+      setInicioYear(finYear);
+    }
+  };
+
   const buscarPorIntervalo = async () => {
     if (!fechaInicio || !fechaFin) {
       setNotification({ message: "Selecciona fecha inicio y fecha fin", type: "info" });
@@ -373,6 +385,21 @@ export default function DownloadFlagranciaModule() {
       )}
 
       <div className="bg-white/5 rounded-3xl p-6 border border-white/5 space-y-5 animate-in fade-in duration-500">
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-2 border-b border-white/5">
+          <span className="text-xs font-bold text-white/70 uppercase tracking-wide">Filtro de fechas</span>
+          <button
+            type="button"
+            onClick={handleSetFechasInicioFin}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 transition-all shadow-sm active:scale-95 cursor-pointer"
+            title="Establecer fecha inicio en 01/01 y fin en 31/12 (mantiene el año)"
+          >
+            <svg className="w-3.5 h-3.5 text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            <span>Fechas inicio/fin</span>
+          </button>
+        </div>
+
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="space-y-1">

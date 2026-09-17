@@ -605,6 +605,18 @@ export default function CaratulasExcelModule() {
     });
   }, [filteredRows, searchExpediente]);
 
+  const handleSetFechasInicioFin = () => {
+    setInicioMonth("01");
+    setInicioDay("01");
+    setFinMonth("12");
+    setFinDay("31");
+    if (inicioYear && !finYear) {
+      setFinYear(inicioYear);
+    } else if (finYear && !inicioYear) {
+      setInicioYear(finYear);
+    }
+  };
+
   const aplicarFiltro = useCallback(() => {
     if (allRows.length === 0) {
       setNotification({ message: "Primero debes cargar un archivo Excel.", type: "info" });
@@ -985,7 +997,20 @@ export default function CaratulasExcelModule() {
 
       {/* Filters */}
       <section className="flex-none bg-slate-950/70 backdrop-blur-2xl border border-cyan-500/20 rounded-2xl p-4 shadow-xl flex flex-col gap-3">
-        <h2 className="text-sm font-bold tracking-wide text-cyan-200 uppercase">ARCHIVO TOTAL</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-sm font-bold tracking-wide text-cyan-200 uppercase">ARCHIVO TOTAL</h2>
+          <button
+            type="button"
+            onClick={handleSetFechasInicioFin}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-200 border border-cyan-400/30 transition-all shadow-sm active:scale-95 cursor-pointer"
+            title="Establecer fecha inicio en 01/01 y fin en 31/12 (mantiene el año)"
+          >
+            <svg className="w-3.5 h-3.5 text-cyan-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            <span>Fechas inicio/fin</span>
+          </button>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="flex flex-col gap-1">
             <label className="text-[10px] font-bold text-slate-300 tracking-wider uppercase">FECHA INICIO</label>
