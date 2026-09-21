@@ -14,8 +14,20 @@ try {
   // Ignorar en caso de aislamiento de contexto
 }
 
-// 2. Notificar periódicamente y de inmediato que el conector está activo
-window.postMessage({ type: "FISCALIA_CONNECTOR_AVAILABLE", version: "1.0.0" }, "*");
+// 2. Notificar inmediatamente y tras carga que el conector está activo
+function notifyReady() {
+  document.documentElement.dataset.fiscaliaExtension = "true";
+  document.documentElement.setAttribute("data-fiscalia-extension", "true");
+  window.postMessage({ type: "FISCALIA_CONNECTOR_AVAILABLE", version: "1.0.0" }, "*");
+}
+
+notifyReady();
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", notifyReady);
+}
+// Repetir a los 500ms y 1500ms para asegurar captura tras la hidratación de React/Next.js
+setTimeout(notifyReady, 500);
+setTimeout(notifyReady, 1500);
 
 // 3. Escuchar peticiones de consulta desde la aplicación web
 window.addEventListener("FISCALIA_EXTENSION_REQUEST", (event) => {

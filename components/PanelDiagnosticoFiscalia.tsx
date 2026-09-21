@@ -15,7 +15,9 @@ export default function PanelDiagnosticoFiscalia() {
 
   useEffect(() => {
     // Comprobar presencia inicial
-    setExtensionActive(isExtensionInstalled());
+    if (isExtensionInstalled()) {
+      setExtensionActive(true);
+    }
 
     // Escuchar si la extensión se activa dinámicamente
     const handleExtensionReady = () => {
@@ -23,11 +25,20 @@ export default function PanelDiagnosticoFiscalia() {
       addLog("🟢 Conector de Navegador detectado y listo en este navegador.");
     };
 
-    window.addEventListener("message", (e) => {
+    const handleMessage = (e: MessageEvent) => {
       if (e.data?.type === "FISCALIA_CONNECTOR_AVAILABLE") {
         handleExtensionReady();
       }
-    });
+    };
+    window.addEventListener("message", handleMessage);
+
+    // Polling ligero durante los primeros 5 segundos para detectar inyección retardada
+    const checkInterval = setInterval(() => {
+      if (isExtensionInstalled()) {
+        setExtensionActive(true);
+        clearInterval(checkInterval);
+      }
+    }, 600);
 
     // Enviar ping si ya estaba cargada
     const id = "ping_" + Math.random().toString(36).substring(2, 8);
@@ -39,6 +50,8 @@ export default function PanelDiagnosticoFiscalia() {
     window.dispatchEvent(new CustomEvent("FISCALIA_EXTENSION_PING", { detail: { id } }));
 
     return () => {
+      clearInterval(checkInterval);
+      window.removeEventListener("message", handleMessage);
       window.removeEventListener("FISCALIA_EXTENSION_PONG_" + id, handlePong);
     };
   }, []);
