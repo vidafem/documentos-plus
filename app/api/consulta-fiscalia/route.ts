@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export const preferredRegion = ["gru1", "iad1"];
 
 const MAIN_URL =
-  "https://www.gestiondefiscalias.gob.ec/siaf/sitio/consulta_ndd_ext/consulta_ciudadana.php";
+  "https://www.gestiondefiscalias.gob.ec/siaf/sitio/consulta_ndd_ext/redirect.php?data=L3Zhci93d3cvaHRtbC9zaWFmL2luZm9ybWFjaW9uL3dlYi9ub3RpY2lhc2RlbGl0by8uLi8uLi8uLi9zaXRpby9jb25zdWx0YV9uZGRfZXh0L2NvbnN1bHRhX2NpdWRhZGFuYS5waHA%3D";
 
 const AJAX_URL =
   "https://www.gestiondefiscalias.gob.ec/siaf/sitio/consulta_ndd_ext/AJX_consulta_noticiasdelito.php";
@@ -155,48 +155,7 @@ function fetchWithSession(valor: string, criterioNumber: number = 6): Promise<Si
   });
 }
 
-async function fetchWithScrapfly(valor: string, criterioNumber: number, apiKey: string): Promise<SiafResponse> {
-  const postData = querystring.stringify({
-    tipo: "buscar_general",
-    criterio: criterioNumber,
-    valor: valor,
-  });
 
-  const params = new URLSearchParams({
-    key: apiKey,
-    url: AJAX_URL,
-    method: "POST",
-    asp: "true",
-    "headers[Content-Type]": "application/x-www-form-urlencoded; charset=UTF-8",
-    "headers[X-Requested-With]": "XMLHttpRequest",
-    "headers[Referer]": MAIN_URL,
-    "headers[Origin]": "https://www.gestiondefiscalias.gob.ec",
-    "headers[Accept]": "application/json, text/javascript, */*; q=0.01",
-  });
-
-  const scrapflyUrl = `https://api.scrapfly.io/scrape?${params.toString()}`;
-
-  const res = await fetch(scrapflyUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: postData,
-  });
-
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`Error en Scrapfly (${res.status}): ${errText}`);
-  }
-
-  const data = await res.json();
-  const rawContent = data?.result?.content;
-  if (!rawContent) {
-    throw new Error("Scrapfly no devolvió contenido de la Fiscalía.");
-  }
-
-  return JSON.parse(rawContent) as SiafResponse;
-}
 
 async function fetchWithCustomProxy(valor: string, criterioNumber: number, proxyUrl: string): Promise<SiafResponse> {
   const separator = proxyUrl.includes("?") ? "&" : "?";
@@ -266,30 +225,14 @@ export async function GET(request: NextRequest) {
 
   try {
     let siafData: SiafResponse;
-    const scrapflyKey = process.env.SCRAPFLY_API_KEY;
     const customProxy = process.env.FISCALIA_PROXY_URL;
 
-    if (scrapflyKey) {
-      try {
-        siafData = await fetchWithScrapfly(valor, criterioNumber, scrapflyKey);
-      } catch (scrapflyErr) {
-        console.warn("Fallo Scrapfly, probando conexión directa:", scrapflyErr);
-        try {
-          siafData = await fetchWithSession(valor, criterioNumber);
-        } catch {
-          throw scrapflyErr;
-        }
-      }
-    } else if (customProxy) {
+    if (customProxy) {
       try {
         siafData = await fetchWithCustomProxy(valor, criterioNumber, customProxy);
       } catch (proxyErr) {
-        console.warn("Fallo Custom Proxy, probando conexión directa:", proxyErr);
-        try {
-          siafData = await fetchWithSession(valor, criterioNumber);
-        } catch {
-          throw proxyErr;
-        }
+        console.warn("Fallo Cloudflare Proxy, probando conexión directa con Fiscalía:", proxyErr);
+        siafData = await fetchWithSession(valor, criterioNumber);
       }
     } else {
       siafData = await fetchWithSession(valor, criterioNumber);
@@ -301,7 +244,8 @@ export async function GET(request: NextRequest) {
         found: false,
         message: "No se encontraron registros para este código en Fiscalía.",
       };
-      memoryCache.set(cacheKey, { data: notFoundPayload, timestamp: Date.now() - (CACHE_TTL_MS - 60 * 60 * 1000) });
+      // Guardar resultados negativos en memoria solo por 2 minutos para no bloquear reintentos
+      memoryCache.set(cacheKey, { data: notFoundPayload, timestamp: Date.now() - (CACHE_TTL_MS - 2 * 60 * 1000) });
       return NextResponse.json(notFoundPayload, { headers: CORS_HEADERS });
     }
 

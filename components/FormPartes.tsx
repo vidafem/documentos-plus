@@ -253,7 +253,9 @@ export default function FormPartes() {
   useEffect(() => {
     const anioNorm = normalizeYearInput(anio);
     const cleanedDigits = ppUltimos10.replace(/\D/g, "");
-    if (anioNorm.length !== 4 || cleanedDigits.length < 8) {
+    // Regla estricta: NO buscar hasta que el usuario termine de escribir al menos el 11vo dígito
+    // (algunos partes tienen 11 dígitos y otros hasta 12, sin contar el prefijo PP-YYYYMMDD)
+    if (anioNorm.length !== 4 || cleanedDigits.length < 11) {
       setFiscaliaStatus("idle");
       setFiscaliaResult(null);
       return;
@@ -281,7 +283,7 @@ export default function FormPartes() {
         setFiscaliaStatus("not_found");
         setFiscaliaResult(null);
       }
-    }, 600);
+    }, 700);
 
     return () => clearTimeout(timer);
   }, [anio, mesProceso, diaCierre, ppUltimos10]);
@@ -528,9 +530,9 @@ export default function FormPartes() {
             </div>
           </div>
 
-          {/* FILA 2: CÓDIGO PP (ACTUALIZADO A 12 DÍGITOS) */}
+          {/* FILA 2: CÓDIGO PP (11 O 12 DÍGITOS FINALES) */}
           <div className="space-y-0.5">
-            <label className="text-[8px] font-bold text-white/30 uppercase">Código PP (12 dígitos finales)</label>
+            <label className="text-[8px] font-bold text-white/30 uppercase">Código PP (11 o 12 dígitos finales)</label>
             <div className={`flex items-center bg-white/5 border rounded-xl overflow-hidden h-9 ${
               ppUnicidad === "unique" ? "border-emerald-500 focus-within:border-emerald-500" :
               ppUnicidad === "duplicate" ? "border-blue-500 focus-within:border-blue-500" :
@@ -539,7 +541,7 @@ export default function FormPartes() {
               <span className="bg-white/10 px-3 h-full flex items-center text-[10px] font-mono text-white/40">
                 PP-{anio}{mesProceso}{diaCierre.padStart(2, "0")}
               </span>
-              <input required type="text" maxLength={12} value={ppUltimos10} onChange={e => setPpUltimos10(e.target.value)} className="flex-1 bg-transparent px-3 text-sm text-white outline-none font-bold" placeholder="000000000000" />
+              <input required type="text" maxLength={12} value={ppUltimos10} onChange={e => setPpUltimos10(e.target.value)} className="flex-1 bg-transparent px-3 text-sm text-white outline-none font-bold" placeholder="00000000000" />
             </div>
             {ppUnicidad === "unique" && <p className="text-[9px] text-emerald-400 font-bold uppercase mt-0.5 px-1">Código PP Disponible</p>}
             {ppUnicidad === "duplicate" && <p className="text-[9px] text-blue-400 font-bold uppercase mt-0.5 px-1">Código PP Duplicado (Revisar)</p>}
