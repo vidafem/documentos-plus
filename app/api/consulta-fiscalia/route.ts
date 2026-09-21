@@ -34,125 +34,38 @@ interface SiafResponse {
   cabecera?: CabeceraItem[];
 }
 
-function decompressStream(res: http.IncomingMessage): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const encoding = (res.headers["content-encoding"] || "").toLowerCase();
-    let stream: NodeJS.ReadableStream = res;
-    if (encoding === "gzip") {
-      stream = res.pipe(zlib.createGunzip());
-    } else if (encoding === "br") {
-      stream = res.pipe(zlib.createBrotliDecompress());
-    } else if (encoding === "deflate") {
-      stream = res.pipe(zlib.createInflate());
-    }
-
-    let body = "";
-    stream.setEncoding("utf8");
-    stream.on("data", (chunk) => (body += chunk));
-    stream.on("end", () => resolve(body));
-    stream.on("error", (err) => reject(err));
+async function fetchDirectFiscalia(valor: string, criterioNumber: number = 6): Promise<SiafResponse> {
+  const postData = querystring.stringify({
+    tipo: "buscar_general",
+    criterio: criterioNumber,
+    valor: valor,
   });
-}
 
-function fetchWithSession(valor: string, criterioNumber: number = 6): Promise<SiafResponse> {
-  return new Promise((resolve, reject) => {
-    const timeoutTimer = setTimeout(() => {
-      reject(new Error("Tiempo de espera agotado al consultar la Fiscalía (Timeout 15s)"));
-    }, 15000);
-
-    const getReq = https.get(
-      MAIN_URL,
-      {
-        rejectUnauthorized: false,
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-          Accept:
-            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-          "Accept-Language": "es-419,es;q=0.9,en;q=0.8",
-          "Accept-Encoding": "gzip, deflate, br",
-          "sec-ch-ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
-          "sec-ch-ua-mobile": "?0",
-          "sec-ch-ua-platform": '"Windows"',
-          "Sec-Fetch-Dest": "document",
-          "Sec-Fetch-Mode": "navigate",
-          "Sec-Fetch-Site": "none",
-          "Upgrade-Insecure-Requests": "1",
-        },
-      },
-      async (res) => {
-        const rawCookies = res.headers["set-cookie"] || [];
-        const cookies = rawCookies.map((c) => c.split(";")[0]).join("; ");
-
-        // Drain get response
-        try {
-          await decompressStream(res);
-        } catch {
-          // Ignorar error de drenado en GET inicial
-        }
-
-        const postData = querystring.stringify({
-          tipo: "buscar_general",
-          criterio: criterioNumber,
-          valor: valor,
-        });
-
-        const postReq = https.request(
-          AJAX_URL,
-          {
-            method: "POST",
-            rejectUnauthorized: false,
-            headers: {
-              "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-              "Content-Length": Buffer.byteLength(postData),
-              "User-Agent":
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-              "X-Requested-With": "XMLHttpRequest",
-              Referer: MAIN_URL,
-              Origin: "https://www.gestiondefiscalias.gob.ec",
-              Cookie: cookies,
-              Accept: "application/json, text/javascript, */*; q=0.01",
-              "Accept-Encoding": "gzip, deflate, br",
-              "Accept-Language": "es-419,es;q=0.9,en;q=0.8",
-              "sec-ch-ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
-              "sec-ch-ua-mobile": "?0",
-              "sec-ch-ua-platform": '"Windows"',
-              "Sec-Fetch-Dest": "empty",
-              "Sec-Fetch-Mode": "cors",
-              "Sec-Fetch-Site": "same-origin",
-            },
-          },
-          async (postRes) => {
-            clearTimeout(timeoutTimer);
-            try {
-              const body = await decompressStream(postRes);
-              const json = JSON.parse(body) as SiafResponse;
-              resolve(json);
-            } catch {
-              reject(
-                new Error(
-                  `La respuesta de la Fiscalía no es JSON válido (HTTP ${postRes.statusCode}).`
-                )
-              );
-            }
-          }
-        );
-
-        postReq.on("error", (err) => {
-          clearTimeout(timeoutTimer);
-          reject(err);
-        });
-
-        postReq.write(postData);
-        postReq.end();
-      }
-    );
-
-    getReq.on("error", (err) => {
-      clearTimeout(timeoutTimer);
-      reject(err);
-    });
+  const res = await fetch(AJAX_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+      "X-Requested-With": "XMLHttpRequest",
+      Referer: "https://www.gestiondefiscalias.gob.ec/siaf/sitio/consulta_ndd_ext/consulta_ciudadana.php",
+      Origin: "https://www.gestiondefiscalias.gob.ec",
+      Accept: "application/json, text/javascript, */*; q=0.01",
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    },
+    body: postData,
+    cache: "no-store",
   });
+
+  if (!res.ok) {
+    throw new Error(`Fiscalía respondió con estado HTTP ${res.status}`);
+  }
+
+  const text = await res.text();
+  try {
+    return JSON.parse(text) as SiafResponse;
+  } catch {
+    throw new Error(`La respuesta de la Fiscalía no es JSON válido (HTTP ${res.status}): ${text.slice(0, 150)}`);
+  }
 }
 
 
@@ -191,6 +104,34 @@ export async function OPTIONS() {
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
+
+  // Endpoint de Ping para diagnóstico en tiempo real
+  if (searchParams.get("ping") === "1") {
+    const customProxy = process.env.FISCALIA_PROXY_URL;
+    let proxyStatus = "no_configurado";
+    let proxyLatency = 0;
+
+    if (customProxy) {
+      const start = Date.now();
+      try {
+        const pingUrl = `${customProxy.replace(/\/$/, "")}?ping=1`;
+        const pRes = await fetch(pingUrl, { cache: "no-store" });
+        proxyLatency = Date.now() - start;
+        proxyStatus = pRes.ok ? "online" : `http_${pRes.status}`;
+      } catch {
+        proxyStatus = "error_conexion";
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      proxyConfigured: Boolean(customProxy),
+      proxyStatus,
+      proxyLatency,
+      timestamp: Date.now(),
+    }, { headers: CORS_HEADERS });
+  }
+
   const valor = (searchParams.get("oficio") || searchParams.get("ndd") || searchParams.get("valor") || "").trim();
   const rawCriterio = searchParams.get("criterio");
 
@@ -232,10 +173,10 @@ export async function GET(request: NextRequest) {
         siafData = await fetchWithCustomProxy(valor, criterioNumber, customProxy);
       } catch (proxyErr) {
         console.warn("Fallo Cloudflare Proxy, probando conexión directa con Fiscalía:", proxyErr);
-        siafData = await fetchWithSession(valor, criterioNumber);
+        siafData = await fetchDirectFiscalia(valor, criterioNumber);
       }
     } else {
-      siafData = await fetchWithSession(valor, criterioNumber);
+      siafData = await fetchDirectFiscalia(valor, criterioNumber);
     }
 
     if (siafData.error || !siafData.cabecera || siafData.cabecera.length === 0) {

@@ -191,7 +191,7 @@ export async function consultarFiscaliaConFallback(queryString: string) {
           found: false,
           error: json.error,
           message:
-            "El cortafuegos de la Fiscalía (Imperva WAF) bloquea las peticiones desde los servidores en la nube de Vercel (error 403). Puedes usar el Conector de Navegador descargable desde el Dashboard para consultar directo sin servidor.",
+            json.error || "No se pudo conectar con el servicio de Fiscalía en este momento. Reintenta en unos instantes.",
         };
       }
 
