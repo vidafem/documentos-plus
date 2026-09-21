@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "Conector Fiscalía - Documentos Plus",
+  "version": "1.0.0",
+  "description": "Permite consultas directas a Fiscalía desde el navegador de quien utiliza el sistema, sin bloqueos WAF de centros de datos y sin necesidad de tener un servidor encendido.",
+  "permissions": [
+    "declarativeNetRequest"
+  ],
+  "host_permissions": [
+    "https://www.gestiondefiscalias.gob.ec/*",
+    "https://*.vercel.app/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.vercel.app/*",
+        "http://localhost/*",
+        "http://127.0.0.1/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ]
+}

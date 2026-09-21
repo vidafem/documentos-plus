@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import PanelDiagnosticoFiscalia from "./PanelDiagnosticoFiscalia";
 
 type SourceKey = "delegaciones" | "partes" | "delegaciones_viejas" | "partes_viejos";
 
@@ -515,6 +516,9 @@ export default function DashboardOverview() {
 
   return (
     <section className="space-y-5">
+      {/* PANEL DE DIAGNÓSTICO Y CONECTOR DE FISCALÍA */}
+      <PanelDiagnosticoFiscalia />
+
       <div className="rounded-3xl border border-cyan-300/20 bg-gradient-to-r from-slate-900/80 via-slate-900/70 to-cyan-950/50 p-5 shadow-[0_10px_45px_rgba(0,0,0,0.35)]">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
