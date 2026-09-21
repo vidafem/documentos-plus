@@ -70,10 +70,70 @@ async function fetchDirectFiscalia(valor: string, criterioNumber: number = 6): P
 
 
 
+async function fetchWithScraperApi(valor: string, criterioNumber: number, apiKey: string): Promise<SiafResponse> {
+  const postData = querystring.stringify({
+    tipo: "buscar_general",
+    criterio: criterioNumber,
+    valor: valor,
+  });
+  const url = `https://api.scraperapi.com?api_key=${apiKey}&url=${encodeURIComponent(AJAX_URL)}`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+    },
+    body: postData,
+  });
+  if (!res.ok) {
+    throw new Error(`Error en ScraperAPI (${res.status})`);
+  }
+  return (await res.json()) as SiafResponse;
+}
+
+async function fetchWithScrapfly(valor: string, criterioNumber: number, apiKey: string): Promise<SiafResponse> {
+  const scrapflyUrl = `https://api.scrapfly.io/scrape?key=${apiKey}`;
+  const payload = {
+    url: AJAX_URL,
+    method: "POST",
+    data: querystring.stringify({
+      tipo: "buscar_general",
+      criterio: criterioNumber,
+      valor: valor,
+    }),
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+      "X-Requested-With": "XMLHttpRequest",
+      Referer: "https://www.gestiondefiscalias.gob.ec/siaf/sitio/consulta_ndd_ext/consulta_ciudadana.php",
+      Origin: "https://www.gestiondefiscalias.gob.ec",
+      Accept: "application/json, text/javascript, */*; q=0.01",
+    },
+    asp: true,
+  };
+
+  const res = await fetch(scrapflyUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Error en Scrapfly (${res.status}): ${errText}`);
+  }
+
+  const data = await res.json();
+  const rawContent = data?.result?.content;
+  if (!rawContent) {
+    throw new Error("Scrapfly no devolvió contenido de la Fiscalía.");
+  }
+
+  return JSON.parse(rawContent) as SiafResponse;
+}
+
 async function fetchWithCustomProxy(valor: string, criterioNumber: number, proxyUrl: string): Promise<SiafResponse> {
   const separator = proxyUrl.includes("?") ? "&" : "?";
   const url = `${proxyUrl}${separator}criterio=${criterioNumber}&valor=${encodeURIComponent(valor)}`;
-  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  const res = await fetch(url, { headers: { Accept: "application/json" }, cache: "no-store" });
   if (!res.ok) {
     throw new Error(`Error en Proxy (${res.status})`);
   }
@@ -128,6 +188,8 @@ export async function GET(request: NextRequest) {
       proxyConfigured: Boolean(customProxy),
       proxyStatus,
       proxyLatency,
+      hasScraperApi: Boolean(process.env.SCRAPERAPI_KEY),
+      hasScrapfly: Boolean(process.env.SCRAPFLY_API_KEY),
       timestamp: Date.now(),
     }, { headers: CORS_HEADERS });
   }
@@ -167,14 +229,26 @@ export async function GET(request: NextRequest) {
   try {
     let siafData: SiafResponse;
     const customProxy = process.env.FISCALIA_PROXY_URL;
+    const scraperApiKey = process.env.SCRAPERAPI_KEY;
+    const scrapflyKey = process.env.SCRAPFLY_API_KEY;
 
     if (customProxy) {
       try {
         siafData = await fetchWithCustomProxy(valor, criterioNumber, customProxy);
       } catch (proxyErr) {
-        console.warn("Fallo Cloudflare Proxy, probando conexión directa con Fiscalía:", proxyErr);
-        siafData = await fetchDirectFiscalia(valor, criterioNumber);
+        console.warn("Fallo Cloudflare Proxy, probando servicios de respaldo:", proxyErr);
+        if (scraperApiKey) {
+          siafData = await fetchWithScraperApi(valor, criterioNumber, scraperApiKey);
+        } else if (scrapflyKey) {
+          siafData = await fetchWithScrapfly(valor, criterioNumber, scrapflyKey);
+        } else {
+          siafData = await fetchDirectFiscalia(valor, criterioNumber);
+        }
       }
+    } else if (scraperApiKey) {
+      siafData = await fetchWithScraperApi(valor, criterioNumber, scraperApiKey);
+    } else if (scrapflyKey) {
+      siafData = await fetchWithScrapfly(valor, criterioNumber, scrapflyKey);
     } else {
       siafData = await fetchDirectFiscalia(valor, criterioNumber);
     }
