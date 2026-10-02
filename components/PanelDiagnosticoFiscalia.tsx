@@ -11,31 +11,54 @@ export default function PanelDiagnosticoFiscalia() {
   const [testCriterio, setTestCriterio] = useState("6"); // 6: Oficio, 2: Cédula
   const [logs, setLogs] = useState<string[]>([]);
 
+  // Configuración dinámica del túnel
+  const [tunnelUrl, setTunnelUrl] = useState<string>("");
+  const [activeTarget, setActiveTarget] = useState<string>("");
+  const [isSavedCustom, setIsSavedCustom] = useState<boolean>(false);
+
   const addLog = (msg: string) => {
     const timestamp = new Date().toLocaleTimeString();
     setLogs((prev) => [`[${timestamp}] ${msg}`, ...prev]);
   };
 
   // Función de verificación de estado y ping
-  const checkHealth = async () => {
+  const checkHealth = async (overrideUrl?: string) => {
     setConnectionStatus("checking");
     addLog("Verificando estado de conexión con Fiscalía y Cloudflare...");
     const start = Date.now();
     try {
-      const res = await fetch("/api/consulta-fiscalia?ping=1", { cache: "no-store" });
+      const targetUrl = typeof overrideUrl === "string" ? overrideUrl : (localStorage.getItem("fiscalia_custom_proxy") || tunnelUrl);
+      const headers: Record<string, string> = {};
+      if (targetUrl && targetUrl.trim()) {
+        headers["x-fiscalia-proxy-url"] = targetUrl.trim();
+      }
+
+      const res = await fetch("/api/consulta-fiscalia?ping=1", { 
+        headers,
+        cache: "no-store" 
+      });
       const elapsed = Date.now() - start;
       setLatency(elapsed);
 
       if (res.ok) {
         const json = await res.json();
+        setActiveTarget(json.proxyTarget || "");
+
         if (json.proxyConfigured && json.proxyStatus === "online") {
           setConnectionStatus("online");
           setProxyMode("Cloudflare Proxy (Activo)");
           addLog(`🟢 Conexión con Cloudflare Proxy verificada con éxito (${elapsed}ms).`);
+          if (json.proxyTarget) {
+            addLog(`   Destino conectado: ${json.proxyTarget}`);
+          }
         } else if (json.proxyConfigured) {
           setConnectionStatus("warning");
           setProxyMode(`Cloudflare Proxy (${json.proxyStatus})`);
-          addLog(`⚠️ Cloudflare Proxy configurado pero devolvió estado: ${json.proxyStatus}.`);
+          addLog(`⚠️ Cloudflare Proxy configurado (${json.proxyTarget || "URL"}) devolvió estado: ${json.proxyStatus}.`);
+          if (json.proxyError) {
+            addLog(`   Detalle del error: ${json.proxyError}`);
+          }
+          addLog("💡 Tip: Si la URL del túnel cambió al reiniciar el script, pégala en el campo 'URL del Túnel' y haz clic en 'Guardar y Conectar'.");
         } else {
           setConnectionStatus("online");
           setProxyMode("Conexión Directa");
@@ -52,8 +75,35 @@ export default function PanelDiagnosticoFiscalia() {
   };
 
   useEffect(() => {
-    checkHealth();
+    const saved = localStorage.getItem("fiscalia_custom_proxy") || "";
+    if (saved) {
+      setTunnelUrl(saved);
+      setIsSavedCustom(true);
+    }
+    checkHealth(saved);
   }, []);
+
+  const handleSaveTunnelUrl = () => {
+    const clean = tunnelUrl.trim();
+    if (clean) {
+      localStorage.setItem("fiscalia_custom_proxy", clean);
+      setIsSavedCustom(true);
+      addLog(`💾 URL del túnel guardada en este navegador: ${clean}`);
+    } else {
+      localStorage.removeItem("fiscalia_custom_proxy");
+      setIsSavedCustom(false);
+      addLog("🗑️ URL local eliminada. El sistema usará la variable de entorno de Vercel.");
+    }
+    checkHealth(clean);
+  };
+
+  const handleClearCustomUrl = () => {
+    localStorage.removeItem("fiscalia_custom_proxy");
+    setTunnelUrl("");
+    setIsSavedCustom(false);
+    addLog("🧹 Filtro de URL local restablecido.");
+    checkHealth("");
+  };
 
   const handleClearLogs = () => setLogs([]);
 
@@ -77,7 +127,13 @@ export default function PanelDiagnosticoFiscalia() {
       const endpoint = `/api/consulta-fiscalia?criterio=${testCriterio}&valor=${encodeURIComponent(testValor)}`;
       addLog(`🌐 GET ${endpoint}`);
 
-      const res = await fetch(endpoint, { cache: "no-store" });
+      const savedProxy = localStorage.getItem("fiscalia_custom_proxy") || tunnelUrl;
+      const headers: Record<string, string> = {};
+      if (savedProxy && savedProxy.trim()) {
+        headers["x-fiscalia-proxy-url"] = savedProxy.trim();
+      }
+
+      const res = await fetch(endpoint, { headers, cache: "no-store" });
       const elapsed = Date.now() - start;
       const text = await res.text();
       addLog(`HTTP Status: ${res.status} (${elapsed}ms)`);
@@ -88,7 +144,7 @@ export default function PanelDiagnosticoFiscalia() {
           setConnectionStatus("online");
           addLog("✅ [ÉXITO] Registro encontrado en Fiscalía:");
           addLog(`   Delito: ${json.delito}`);
-          addLog(`   Detenido(s): ${json.detenidos}`);
+          addLog(`   Detenido(s): ${json.detenidos || "Ninguno"}`);
           addLog(`   NDD: ${json.ndd}`);
         } else if (json.found === false && json.message) {
           setConnectionStatus("online");
@@ -155,7 +211,7 @@ export default function PanelDiagnosticoFiscalia() {
           {connectionStatus === "warning" && (
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs font-bold">
               <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
-              <span>Conexión Inestable</span>
+              <span>Conexión Inestable / Desactualizada</span>
             </div>
           )}
 
@@ -164,6 +220,59 @@ export default function PanelDiagnosticoFiscalia() {
               <span className="w-2.5 h-2.5 rounded-full bg-rose-400"></span>
               <span>Sin Conexión</span>
             </div>
+          )}
+        </div>
+      </div>
+
+      {/* SECCIÓN CONFIGURACIÓN RÁPIDA DE LA URL DEL TÚNEL */}
+      <div className="bg-gradient-to-r from-indigo-950/40 via-purple-950/20 to-black/40 border border-indigo-500/30 rounded-xl p-3.5 space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-sm">🔗</span>
+            <span className="text-xs font-bold text-white">URL Activa del Túnel de Cloudflare:</span>
+            {isSavedCustom ? (
+              <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded border border-emerald-500/30">
+                Personalizada (Navegador)
+              </span>
+            ) : (
+              <span className="text-[10px] bg-white/10 text-white/60 px-2 py-0.5 rounded border border-white/15">
+                Por defecto (Vercel ENV)
+              </span>
+            )}
+          </div>
+          {activeTarget && (
+            <span className="text-[11px] font-mono text-cyan-300 truncate max-w-[320px]">
+              Actual: {activeTarget}
+            </span>
+          )}
+        </div>
+
+        <p className="text-[11px] text-white/60 leading-relaxed">
+          Cada vez que inicias <code className="text-indigo-300 bg-white/5 px-1 py-0.5 rounded font-mono">iniciar-tunel-cloudflare.bat</code>, Cloudflare genera una URL nueva. Pégala aquí directamente para conectar al instante sin necesidad de modificar Vercel ni redesplegar:
+        </p>
+
+        <div className="flex flex-wrap sm:flex-nowrap gap-2 items-center pt-1">
+          <input
+            type="text"
+            value={tunnelUrl}
+            onChange={(e) => setTunnelUrl(e.target.value)}
+            placeholder="https://xxxxx.trycloudflare.com"
+            className="flex-1 bg-black/40 border border-indigo-500/30 text-cyan-200 text-xs rounded-lg px-3 py-2 outline-none font-mono focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"
+          />
+          <button
+            onClick={handleSaveTunnelUrl}
+            className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-lg transition-all active:scale-95 cursor-pointer whitespace-nowrap"
+          >
+            💾 Guardar y Conectar
+          </button>
+          {isSavedCustom && (
+            <button
+              onClick={handleClearCustomUrl}
+              className="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white/70 hover:text-white text-xs font-medium transition-all cursor-pointer whitespace-nowrap"
+              title="Restablecer para usar la URL configurada en Vercel"
+            >
+              🧹 Restablecer
+            </button>
           )}
         </div>
       </div>
@@ -180,11 +289,11 @@ export default function PanelDiagnosticoFiscalia() {
               <span className="text-[11px] text-white/50 font-mono">{proxyMode}</span>
             </div>
             <p className="text-[11px] text-white/50 mt-1 leading-relaxed">
-              Las consultas se gestionan internamente para que todos los usuarios y pasantes consulten sin necesidad de instalar nada en sus navegadores.
+              Las consultas a la Fiscalía se canalizan mediante el túnel local para evitar bloqueos del firewall (WAF) institucional.
             </p>
           </div>
           <button
-            onClick={checkHealth}
+            onClick={() => checkHealth()}
             disabled={connectionStatus === "checking"}
             className="w-full py-2 px-3 rounded-lg bg-indigo-600/60 hover:bg-indigo-600 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 cursor-pointer disabled:opacity-50"
           >
@@ -213,8 +322,7 @@ export default function PanelDiagnosticoFiscalia() {
                 onChange={(e) => setTestValor(e.target.value)}
                 placeholder="Número a probar..."
                 className="flex-1 bg-black/30 border border-white/15 text-white text-xs rounded-lg px-3 py-1 outline-none font-mono"
-              >
-              </input>
+              />
             </div>
           </div>
           <button
@@ -225,9 +333,7 @@ export default function PanelDiagnosticoFiscalia() {
             {isTesting ? (
               <span className="flex items-center gap-2 animate-pulse">Consultando...</span>
             ) : (
-              <>
-                <span>▶ Ejecutar Prueba y Ver Logs</span>
-              </>
+              <span>▶ Ejecutar Prueba y Ver Logs</span>
             )}
           </button>
         </div>

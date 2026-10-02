@@ -14,7 +14,8 @@ timeout /t 2 /nobreak >nul
 echo.
 echo 2. Estableciendo Tunel de Cloudflare...
 echo Copia la URL https://xxxx.trycloudflare.com que aparecera abajo
-echo y colocala en FISCALIA_PROXY_URL en tu proyecto de Vercel.
+echo y pegala directamente en el Panel de la aplicacion (Dashboard)
+echo o en FISCALIA_PROXY_URL en tu proyecto de Vercel.
 echo.
 echo =======================================================
 echo.

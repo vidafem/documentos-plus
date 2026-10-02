@@ -131,9 +131,14 @@ async function fetchWithScrapfly(valor: string, criterioNumber: number, apiKey: 
 }
 
 async function fetchWithCustomProxy(valor: string, criterioNumber: number, proxyUrl: string): Promise<SiafResponse> {
-  const separator = proxyUrl.includes("?") ? "&" : "?";
-  const url = `${proxyUrl}${separator}criterio=${criterioNumber}&valor=${encodeURIComponent(valor)}`;
-  const res = await fetch(url, { headers: { Accept: "application/json" }, cache: "no-store" });
+  const cleanProxy = normalizeProxyUrl(proxyUrl) || proxyUrl;
+  const separator = cleanProxy.includes("?") ? "&" : "?";
+  const url = `${cleanProxy}${separator}criterio=${criterioNumber}&valor=${encodeURIComponent(valor)}`;
+  const res = await fetch(url, { 
+    headers: { Accept: "application/json" }, 
+    cache: "no-store",
+    signal: AbortSignal.timeout(12000)
+  });
   if (!res.ok) {
     throw new Error(`Error en Proxy (${res.status})`);
   }
@@ -162,32 +167,59 @@ export async function OPTIONS() {
   });
 }
 
+function normalizeProxyUrl(rawUrl: string | null | undefined): string | null {
+  if (!rawUrl) return null;
+  let trimmed = rawUrl.trim();
+  if (!trimmed) return null;
+  if (!/^https?:\/\//i.test(trimmed)) {
+    trimmed = `https://${trimmed}`;
+  }
+  return trimmed.replace(/\/+$/, "");
+}
+
+function resolveProxyUrl(request: NextRequest, searchParams: URLSearchParams): string | null {
+  const fromHeader = request.headers.get("x-fiscalia-proxy-url");
+  const fromQuery = searchParams.get("proxy_url");
+  const fromEnv = process.env.FISCALIA_PROXY_URL;
+  return normalizeProxyUrl(fromHeader || fromQuery || fromEnv);
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
 
   // Endpoint de Ping para diagnóstico en tiempo real
   if (searchParams.get("ping") === "1") {
-    const customProxy = process.env.FISCALIA_PROXY_URL;
+    const customProxy = resolveProxyUrl(request, searchParams);
     let proxyStatus = "no_configurado";
     let proxyLatency = 0;
+    let proxyError: string | null = null;
 
     if (customProxy) {
       const start = Date.now();
       try {
-        const pingUrl = `${customProxy.replace(/\/$/, "")}?ping=1`;
-        const pRes = await fetch(pingUrl, { cache: "no-store" });
+        const pingUrl = `${customProxy}?ping=1`;
+        const pRes = await fetch(pingUrl, { 
+          cache: "no-store",
+          signal: AbortSignal.timeout(6000)
+        });
         proxyLatency = Date.now() - start;
         proxyStatus = pRes.ok ? "online" : `http_${pRes.status}`;
-      } catch {
+        if (!pRes.ok) {
+          proxyError = `HTTP ${pRes.status} ${pRes.statusText}`;
+        }
+      } catch (err: unknown) {
         proxyStatus = "error_conexion";
+        proxyError = err instanceof Error ? err.message : String(err);
       }
     }
 
     return NextResponse.json({
       success: true,
       proxyConfigured: Boolean(customProxy),
+      proxyTarget: customProxy,
       proxyStatus,
       proxyLatency,
+      proxyError,
       hasScraperApi: Boolean(process.env.SCRAPERAPI_KEY),
       hasScrapfly: Boolean(process.env.SCRAPFLY_API_KEY),
       timestamp: Date.now(),
@@ -228,7 +260,7 @@ export async function GET(request: NextRequest) {
 
   try {
     let siafData: SiafResponse;
-    const customProxy = process.env.FISCALIA_PROXY_URL;
+    const customProxy = resolveProxyUrl(request, searchParams);
     const scraperApiKey = process.env.SCRAPERAPI_KEY;
     const scrapflyKey = process.env.SCRAPFLY_API_KEY;
 

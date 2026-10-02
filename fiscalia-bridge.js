@@ -10,7 +10,7 @@ const REFERER_URL =
 const server = http.createServer(async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Headers", "*");
 
   if (req.method === "OPTIONS") {
     res.writeHead(204);
@@ -72,6 +72,14 @@ const server = http.createServer(async (req, res) => {
   } catch (err) {
     res.writeHead(500, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ error: err.message }));
+  }
+});
+
+server.on("error", (err) => {
+  if (err.code === "EADDRINUSE") {
+    console.log(`[Fiscalia Bridge] Puerto ${PORT} ya está en uso. Continuando con la instancia activa.`);
+  } else {
+    console.error(`[Fiscalia Bridge] Error del servidor:`, err);
   }
 });
 

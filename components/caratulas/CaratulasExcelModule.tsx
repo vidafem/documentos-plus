@@ -108,8 +108,14 @@ const toSortableDateNumber = (value: unknown): number => {
   return Number(`${year}${month}${day}`);
 };
 
+const cleanExpediente = (val: string): string => {
+  const trimmed = val.trim();
+  const withoutPrefix = trimmed.replace(/^IF[-\s]*/i, "");
+  return withoutPrefix.startsWith("901018") ? `0${withoutPrefix}` : withoutPrefix;
+};
+
 const getExpedienteFromRow = (row: GenericRow): string =>
-  toText(readFirstValue(row, ["N°_DE_EXPEDIENTE", "N_DE_EXPEDIENTE", "EXPEDIENTE", "expediente", "N° DE EXPEDIENTE"]));
+  cleanExpediente(toText(readFirstValue(row, ["N°_DE_EXPEDIENTE", "N_DE_EXPEDIENTE", "EXPEDIENTE", "expediente", "N° DE EXPEDIENTE"])));
 
 const getCierreFromRow = (row: GenericRow): string =>
   toText(readFirstValue(row, ["CIERRE", "FECHA_CIERRE", "fecha_cierre"]));
@@ -140,7 +146,7 @@ const replaceTemplateTokens = (template: string, values: Record<string, string>)
 
   const encoded = {
     descripcion: encodeHtml(values.descripcion),
-    expediente: encodeHtml(values.expediente),
+    expediente: encodeHtml(cleanExpediente(values.expediente)),
     apertura: encodeHtml(values.apertura),
     cierre: encodeHtml(values.cierre),
     fojas: encodeHtml(values.fojas),
@@ -1128,7 +1134,8 @@ export default function CaratulasExcelModule() {
                   {ARCHIVO_HEADERS.map((h) => {
                     const val = toText(readFirstValue(row, h.keys));
                     const isDate = h.label === "APERTURA" || h.label === "CIERRE";
-                    const displayVal = isDate ? toDisplayDate(val) : val;
+                    const isExpediente = h.label === "N°_DE_EXPEDIENTE";
+                    const displayVal = isDate ? toDisplayDate(val) : isExpediente ? cleanExpediente(val) : val;
                     return (
                       <td
                         key={h.label}

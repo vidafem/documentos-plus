@@ -158,7 +158,18 @@ export async function consultarFiscaliaConFallback(queryString: string) {
 
   // 3. Consultar endpoint normal (/api/consulta-fiscalia)
   try {
-    const res = await fetch(`/api/consulta-fiscalia?${queryString}`);
+    const customHeaders: Record<string, string> = {};
+    if (typeof window !== "undefined") {
+      const savedProxy = localStorage.getItem("fiscalia_custom_proxy");
+      if (savedProxy && savedProxy.trim()) {
+        customHeaders["x-fiscalia-proxy-url"] = savedProxy.trim();
+      }
+    }
+
+    const res = await fetch(`/api/consulta-fiscalia?${queryString}`, {
+      headers: customHeaders,
+      cache: "no-store",
+    });
     if (res.ok) {
       const json = await res.json();
 

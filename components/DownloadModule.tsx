@@ -25,6 +25,12 @@ const ARCHIVO_HEADERS = [
 
 const toText = (value: unknown): string => String(value ?? "").trim();
 
+const cleanExpediente = (val: string): string => {
+  const trimmed = val.trim();
+  const withoutPrefix = trimmed.replace(/^IF[-\s]*/i, "");
+  return withoutPrefix.startsWith("901018") ? `0${withoutPrefix}` : withoutPrefix;
+};
+
 const readFirstValue = (row: GenericRow, possibleKeys: readonly string[]): string => {
   for (const key of possibleKeys) {
     const value = row[key];
@@ -119,7 +125,7 @@ const toDisplayDate = (value: string): string => {
 };
 
 const getPdfNameBase = (row: GenericRow): string => {
-  const expediente = toText(readFirstValue(row, ["expediente"])) || "SIN_EXPEDIENTE";
+  const expediente = cleanExpediente(toText(readFirstValue(row, ["expediente"]))) || "SIN_EXPEDIENTE";
   const cierre = toText(readFirstValue(row, ["fecha_cierre"])) || "SIN_CIERRE";
   return sanitizeFileName(`${expediente}_${cierre}`);
 };
@@ -151,7 +157,7 @@ const replaceTemplateTokens = (template: string, values: Record<string, string>)
   let html = template;
   const encoded = {
     descripcion: encodeHtml(values.descripcion),
-    expediente: encodeHtml(values.expediente),
+    expediente: encodeHtml(cleanExpediente(values.expediente)),
     apertura: encodeHtml(values.apertura),
     cierre: encodeHtml(values.cierre),
     fojas: encodeHtml(values.fojas),
@@ -348,7 +354,7 @@ export default function DownloadModule() {
 
     const templateFilled = replaceTemplateTokens(pdfTemplate, {
       descripcion: toText(readFirstValue(row, ["descripcion"])),
-      expediente: toText(readFirstValue(row, ["expediente"])),
+      expediente: cleanExpediente(toText(readFirstValue(row, ["expediente"]))),
       apertura: toDisplayDate(toText(readFirstValue(row, ["fecha_apertura"]))),
       cierre: toDisplayDate(toText(readFirstValue(row, ["fecha_cierre"]))),
       fojas: toText(readFirstValue(row, ["n_fojas"])),
@@ -434,7 +440,7 @@ export default function DownloadModule() {
 
     const templateFilled = replaceTemplateTokens(pdfTemplate, {
       descripcion: toText(readFirstValue(row, ["descripcion"])),
-      expediente: toText(readFirstValue(row, ["expediente"])),
+      expediente: cleanExpediente(toText(readFirstValue(row, ["expediente"]))),
       apertura: toDisplayDate(toText(readFirstValue(row, ["fecha_apertura"]))),
       cierre: toDisplayDate(toText(readFirstValue(row, ["fecha_cierre"]))),
       fojas: toText(readFirstValue(row, ["n_fojas"])),
@@ -526,7 +532,7 @@ export default function DownloadModule() {
         const row = registrosTotal[i];
         const templateFilled = replaceTemplateTokens(pdfTemplate, {
           descripcion: toText(readFirstValue(row, ["descripcion"])),
-          expediente: toText(readFirstValue(row, ["expediente"])),
+          expediente: cleanExpediente(toText(readFirstValue(row, ["expediente"]))),
           apertura: toDisplayDate(toText(readFirstValue(row, ["fecha_apertura"]))),
           cierre: toDisplayDate(toText(readFirstValue(row, ["fecha_cierre"]))),
           fojas: toText(readFirstValue(row, ["n_fojas"])),
@@ -667,7 +673,8 @@ export default function DownloadModule() {
     const exportData = rowsToExport.map((row) => {
       const exportRow: Record<string, string> = {};
       ARCHIVO_HEADERS.forEach((header) => {
-        exportRow[header.label] = toText(readFirstValue(row, header.keys));
+        const val = toText(readFirstValue(row, header.keys));
+        exportRow[header.label] = header.label === "N°_DE_EXPEDIENTE" ? cleanExpediente(val) : val;
       });
       return exportRow;
     });
@@ -927,11 +934,15 @@ export default function DownloadModule() {
                       </button>
                     </td>
                   )}
-                  {ARCHIVO_HEADERS.map((header) => (
-                    <td key={`${header.label}-${rowKey}`} className="p-3 whitespace-nowrap font-mono">
-                      {toText(readFirstValue(row, header.keys))}
-                    </td>
-                  ))}
+                  {ARCHIVO_HEADERS.map((header) => {
+                    const val = toText(readFirstValue(row, header.keys));
+                    const displayVal = header.label === "N°_DE_EXPEDIENTE" ? cleanExpediente(val) : val;
+                    return (
+                      <td key={`${header.label}-${rowKey}`} className="p-3 whitespace-nowrap font-mono">
+                        {displayVal}
+                      </td>
+                    );
+                  })}
                 </tr>
               );
             })}

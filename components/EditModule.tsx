@@ -120,11 +120,17 @@ const encodeHtml = (value: string): string =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 
+const cleanExpediente = (val: string): string => {
+  const trimmed = val.trim();
+  const withoutPrefix = trimmed.replace(/^IF[-\s]*/i, "");
+  return withoutPrefix.startsWith("901018") ? `0${withoutPrefix}` : withoutPrefix;
+};
+
 const replaceTemplateTokens = (template: string, values: Record<string, string>): string => {
   let html = template;
   const encoded = {
     descripcion: encodeHtml(values.descripcion),
-    expediente: encodeHtml(values.expediente),
+    expediente: encodeHtml(cleanExpediente(values.expediente)),
     apertura: encodeHtml(values.apertura),
     cierre: encodeHtml(values.cierre),
     fojas: encodeHtml(values.fojas),
@@ -447,7 +453,7 @@ export default function EditModule() {
 
     const templateFilled = replaceTemplateTokens(pdfTemplate, {
       descripcion: String(item.descripcion || ""),
-      expediente: String(item.expediente || ""),
+      expediente: cleanExpediente(String(item.expediente || "")),
       apertura: toDisplayDate(String(item.fecha_apertura || "")),
       cierre: toDisplayDate(String(item.fecha_cierre || "")),
       fojas: String(item.n_fojas || ""),

@@ -39,6 +39,12 @@ const ARCH_DELE_INSERT_COLUMNS = [
 
 const toText = (value: unknown): string => String(value ?? "").trim();
 
+const cleanExpediente = (val: string): string => {
+  const trimmed = val.trim();
+  const withoutPrefix = trimmed.replace(/^IF[-\s]*/i, "");
+  return withoutPrefix.startsWith("901018") ? `0${withoutPrefix}` : withoutPrefix;
+};
+
 const readFirstValue = (row: GenericRow, possibleKeys: readonly string[]): string => {
   for (const key of possibleKeys) {
     const value = row[key];
@@ -192,7 +198,8 @@ const mapFlagranciaToArchDele = (row: GenericRow, fiscalMaps: FiscalLookupMaps):
   const result: Record<string, string | number | null> = {};
 
   const rawIf = toText(row["IF"]).trim();
-  const ifValue = rawIf.startsWith("901018") ? `0${rawIf}` : rawIf;
+  const ifClean = rawIf.replace(/^IF[-\s]*/i, "");
+  const ifValue = ifClean.startsWith("901018") ? `0${ifClean}` : ifClean;
   const unidadFiscalia = toText(row["UNIDAD_ESPECIALIZADA_DE_FISCALIA"]);
   const numFiscalia = extractFiscalNumber(unidadFiscalia);
   const fiscalName = toText(row["APELLIDOS_Y_NOMBRES_DEL_FISCAL"]);
@@ -207,7 +214,7 @@ const mapFlagranciaToArchDele = (row: GenericRow, fiscalMaps: FiscalLookupMaps):
 
   result["SERIE/SUBSERIE_DOCUMENTAL"] = "Procedimientos Investigativos por Disposición Judicial";
   result["N°CAJA"] = "";
-  result["N°_DE_EXPEDIENTE"] = `IF-${ifValue}`;
+  result["N°_DE_EXPEDIENTE"] = ifValue;
   result["N°_DE_TOMO"] = "1/1";
   result["DESCRIPCIÓN"] = `Oficio No.FPG-FEIFO${numFiscalia}-${fiscalCod}-${anioDelegacion}-${oficio6}-O; Delito: ${delito} ; ${sospechosoTexto}`;
   result["APERTURA"] = toNullableDateIso(row["F_DELEGACION"]);
@@ -349,7 +356,7 @@ const replaceTemplateTokens = (template: string, values: Record<string, string>)
 
   const encoded = {
     descripcion: encodeHtml(values.descripcion),
-    expediente: encodeHtml(values.expediente),
+    expediente: encodeHtml(cleanExpediente(values.expediente)),
     apertura: encodeHtml(values.apertura),
     cierre: encodeHtml(values.cierre),
     fojas: encodeHtml(values.fojas),
@@ -449,7 +456,7 @@ const downloadBlob = (blob: Blob, fileName: string): void => {
 };
 
 const getExpedienteFromRow = (row: GenericRow): string =>
-  toText(readFirstValue(row, ["N°_DE_EXPEDIENTE", "N_DE_EXPEDIENTE", "EXPEDIENTE", "expediente"]));
+  cleanExpediente(toText(readFirstValue(row, ["N°_DE_EXPEDIENTE", "N_DE_EXPEDIENTE", "EXPEDIENTE", "expediente"])));
 
 const getCierreFromRow = (row: GenericRow): string =>
   toText(readFirstValue(row, ["CIERRE", "FECHA_CIERRE", "fecha_cierre"]));
@@ -468,14 +475,14 @@ const getPdfNameBase = (row: GenericRow): string => {
 };
 
 const buildArchCompositeKey = (expediente: unknown, cierre: unknown): string => {
-  const exp = String(expediente ?? "").trim();
+  const exp = cleanExpediente(String(expediente ?? ""));
   const cierreNorm = normalizeDateValue(String(cierre ?? ""));
   const ym = cierreNorm ? cierreNorm.slice(0, 7) : "";
   return exp && ym ? `${exp}|${ym}` : "";
 };
 
 const buildArchExpedienteKey = (expediente: unknown): string =>
-  String(expediente ?? "").trim();
+  cleanExpediente(String(expediente ?? ""));
 
 const sortRowsByCierreAndId = (rows: GenericRow[]): GenericRow[] => {
   const sorted = [...rows];
@@ -548,7 +555,7 @@ export const syncArchDeleFromFlagranciaGlobal = async (): Promise<{
 
   const uniqueByExpediente = new Map<string, Record<string, string | number | null>>();
   payload.forEach((row) => {
-    const expedienteKey = String(row["N°_DE_EXPEDIENTE"] || "").trim();
+    const expedienteKey = cleanExpediente(String(row["N°_DE_EXPEDIENTE"] || ""));
     if (!expedienteKey) return;
 
     // Clave compuesta: mismo IF en distintos meses = entradas separadas en el archivo
@@ -1091,7 +1098,8 @@ export default function ArchivoDelegacionesModule() {
     const exportData = rowsToExport.map((row) => {
       const exportRow: Record<string, string> = {};
       ARCHIVO_HEADERS.forEach((header) => {
-        exportRow[header.label] = toText(readFirstValue(row, header.keys));
+        const val = toText(readFirstValue(row, header.keys));
+        exportRow[header.label] = header.label === "N°_DE_EXPEDIENTE" ? cleanExpediente(val) : val;
       });
       return exportRow;
     });
@@ -1364,11 +1372,15 @@ export default function ArchivoDelegacionesModule() {
                     </button>
                   </td>
                 )}
-                {ARCHIVO_HEADERS.map((header) => (
-                  <td key={`${header.label}-${idx}`} className="p-3 whitespace-nowrap font-mono">
-                    {toText(readFirstValue(row, header.keys))}
-                  </td>
-                ))}
+                {ARCHIVO_HEADERS.map((header) => {
+                  const val = toText(readFirstValue(row, header.keys));
+                  const displayVal = header.label === "N°_DE_EXPEDIENTE" ? cleanExpediente(val) : val;
+                  return (
+                    <td key={`${header.label}-${idx}`} className="p-3 whitespace-nowrap font-mono">
+                      {displayVal}
+                    </td>
+                  );
+                })}
               </tr>
             ))}
           </tbody>
