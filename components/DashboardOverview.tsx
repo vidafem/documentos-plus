@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import PanelDiagnosticoFiscalia from "./PanelDiagnosticoFiscalia";
+import HistorialBusquedasModal from "./HistorialBusquedasModal";
 
 type SourceKey = "delegaciones" | "partes" | "delegaciones_viejas" | "partes_viejos";
 
@@ -255,6 +256,7 @@ export default function DashboardOverview() {
   const [selectedMonthYear, setSelectedMonthYear] = useState(CURRENT_YEAR);
   const [selectedMonth, setSelectedMonth] = useState(String(new Date().getMonth() + 1).padStart(2, "0"));
   const [monthlyStatus, setMonthlyStatus] = useState<MonthlyDelegacionesStatus>(createEmptyMonthlyStatus());
+  const [isHistorialOpen, setIsHistorialOpen] = useState(false);
   const statusCacheRef = useRef<Record<string, SourceStatus>>({});
   const monthlyCacheRef = useRef<Record<string, MonthlyDelegacionesStatus>>({});
 
@@ -526,12 +528,21 @@ export default function DashboardOverview() {
             <h3 className="text-xl md:text-2xl font-black text-white">Estado de Cierres por Módulo</h3>
             <p className="text-xs text-white/55 mt-1">Basado en la última fecha de cierre registrada en cada tabla.</p>
           </div>
-          <button
-            onClick={() => void loadSummary()}
-            className="px-4 py-2 rounded-xl text-[10px] font-black uppercase bg-cyan-500/20 text-cyan-200 hover:bg-cyan-500/35 border border-cyan-300/30"
-          >
-            Actualizar
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsHistorialOpen(true)}
+              className="px-4 py-2 rounded-xl text-[10px] font-black uppercase bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-400/40 shadow-[0_0_15px_rgba(99,102,241,0.25)] flex items-center gap-1.5 transition-all hover:scale-105 active:scale-95 cursor-pointer"
+            >
+              <span>📋</span>
+              <span>Historial de Búsquedas (Logs)</span>
+            </button>
+            <button
+              onClick={() => void loadSummary()}
+              className="px-4 py-2 rounded-xl text-[10px] font-black uppercase bg-cyan-500/20 text-cyan-200 hover:bg-cyan-500/35 border border-cyan-300/30 transition-all cursor-pointer"
+            >
+              Actualizar
+            </button>
+          </div>
         </div>
 
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -680,6 +691,11 @@ export default function DashboardOverview() {
           );
         })}
       </div>
+
+      <HistorialBusquedasModal
+        isOpen={isHistorialOpen}
+        onClose={() => setIsHistorialOpen(false)}
+      />
     </section>
   );
 }

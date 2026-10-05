@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import Notification from "./Notification";
 import { consultarFiscaliaConFallback } from "@/lib/fiscaliaClient";
+import { registrarLogBusqueda } from "@/lib/searchLogger";
 
 type PeritoSuggestion = {
   grado: string;
@@ -466,9 +467,25 @@ export default function FormDelegacionesDiarias({
             count: json.procesadosCount || 0,
             fecha: json.fecha || "",
           });
+          void registrarLogBusqueda({
+            modulo: "Delegaciones Diarias (Edición)",
+            numero: fullNdd,
+            criterio: "NDD / Causa",
+            detenidos: json.detenidos || "",
+            delito: json.delito || "",
+            estado: "exitosa",
+            total_encontrados: json.procesadosCount || 1,
+          });
         } else {
           setFiscaliaStatus("not_found");
           setFiscaliaResult(null);
+          void registrarLogBusqueda({
+            modulo: "Delegaciones Diarias (Edición)",
+            numero: fullNdd,
+            criterio: "NDD / Causa",
+            estado: "normal",
+            total_encontrados: 0,
+          });
         }
       } catch (err) {
         console.error("Error consultando Fiscalía:", err);

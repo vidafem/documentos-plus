@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { consultarFiscaliaConFallback } from "@/lib/fiscaliaClient";
+import { registrarLogBusqueda } from "@/lib/searchLogger";
 
 export interface FiscaliaRecordItem {
   ndd: string;
@@ -84,10 +85,27 @@ export default function ModalBusquedaCedulaFiscalia({
           initialMap[idx] = true;
         });
         setApplyDateMap(initialMap);
+
+        void registrarLogBusqueda({
+          modulo: "Búsqueda por Cédula/RUC",
+          numero: cleanValue,
+          criterio: cleanValue.length === 13 ? "RUC" : "Cédula",
+          detenidos: foundRecords.map((r) => r.detenidos).filter(Boolean).join(" | "),
+          delito: foundRecords.map((r) => r.delito).filter(Boolean).join(" | "),
+          estado: "exitosa",
+          total_encontrados: foundRecords.length,
+        });
       } else {
         setErrorMessage(
           res?.message || res?.error || "No se encontraron denuncias ni causas para esta cédula en el sistema de la Fiscalía."
         );
+        void registrarLogBusqueda({
+          modulo: "Búsqueda por Cédula/RUC",
+          numero: cleanValue,
+          criterio: cleanValue.length === 13 ? "RUC" : "Cédula",
+          estado: "normal",
+          total_encontrados: 0,
+        });
       }
     } catch (err) {
       console.error("Error buscando por cédula en Fiscalía:", err);

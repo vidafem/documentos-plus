@@ -11,6 +11,7 @@ import {
   formatDetenidosList,
   formatDescripcionParteCompleta,
 } from "@/lib/textFormatters";
+import { registrarLogBusqueda } from "@/lib/searchLogger";
 
 const normalizeYearInput = (value: string) => value.replace(/\D/g, "").slice(0, 4);
 const normalizeUpper = (value: string) => value.toUpperCase();
@@ -264,9 +265,25 @@ export default function FormPartes() {
             detenidos: json.detenidos || "",
             count: json.procesadosCount || 0,
           });
+          void registrarLogBusqueda({
+            modulo: "Partes Viejos",
+            numero: fullOficio,
+            criterio: "Oficio / Código PP",
+            detenidos: json.detenidos || "",
+            delito: json.delito || "",
+            estado: "exitosa",
+            total_encontrados: json.procesadosCount || 1,
+          });
         } else {
           setFiscaliaStatus("not_found");
           setFiscaliaResult(null);
+          void registrarLogBusqueda({
+            modulo: "Partes Viejos",
+            numero: fullOficio,
+            criterio: "Oficio / Código PP",
+            estado: "normal",
+            total_encontrados: 0,
+          });
         }
       } catch (err) {
         console.error("Error consultando Fiscalía:", err);

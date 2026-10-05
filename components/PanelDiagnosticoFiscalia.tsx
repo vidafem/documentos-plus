@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { registrarLogBusqueda } from "@/lib/searchLogger";
 
 export default function PanelDiagnosticoFiscalia() {
   const [connectionStatus, setConnectionStatus] = useState<"checking" | "online" | "warning" | "offline">("checking");
@@ -146,9 +147,25 @@ export default function PanelDiagnosticoFiscalia() {
           addLog(`   Delito: ${json.delito}`);
           addLog(`   Detenido(s): ${json.detenidos || "Ninguno"}`);
           addLog(`   NDD: ${json.ndd}`);
+          void registrarLogBusqueda({
+            modulo: "Diagnóstico Fiscalía",
+            numero: testValor,
+            criterio: testCriterio === "2" ? "Cédula" : "Oficio / Código",
+            detenidos: json.detenidos || "",
+            delito: json.delito || "",
+            estado: "exitosa",
+            total_encontrados: 1,
+          });
         } else if (json.found === false && json.message) {
           setConnectionStatus("online");
           addLog(`ℹ️ [SIN REGISTROS] ${json.message}`);
+          void registrarLogBusqueda({
+            modulo: "Diagnóstico Fiscalía",
+            numero: testValor,
+            criterio: testCriterio === "2" ? "Cédula" : "Oficio / Código",
+            estado: "normal",
+            total_encontrados: 0,
+          });
         } else if (json.error) {
           setConnectionStatus("warning");
           addLog(`❌ [ERROR REPORTADO] ${json.error}`);
