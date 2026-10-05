@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx-js-style";
 import { supabase } from "@/lib/supabaseClient";
 import Notification from "./Notification";
+import { normalizeDescripcionParteExistente } from "@/lib/textFormatters";
 
 type GenericRow = Record<string, string | number | null>;
 type SourceTable = "PARTES" | "partes_viejas";
@@ -645,7 +646,7 @@ export default function BasesPartesModule({ sourceTable, title }: BasesPartesMod
       "N° CAJA": toText(row.n_caja),
       expediente: toText(row.expediente),
       n_tomo: toText(row.n_tomo),
-      descripcion: toText(row.descripcion),
+      descripcion: normalizeDescripcionParteExistente(toText(row.descripcion)),
       fecha_apertura: toText(row.fecha_apertura),
       fecha_cierre: toText(row.fecha_cierre),
       n_fojas: toText(row.n_fojas),
@@ -1190,7 +1191,9 @@ export default function BasesPartesModule({ sourceTable, title }: BasesPartesMod
                 <tr key={`bases-${idx}`} className="border-t border-white/10 hover:bg-white/5">
                   {TABLE_HEADERS.map((header) => (
                     <td key={`${header.key}-${idx}`} className="p-3 font-mono align-top">
-                      {toText(row[header.key])}
+                      {header.key === "descripcion"
+                        ? normalizeDescripcionParteExistente(toText(row[header.key]))
+                        : toText(row[header.key])}
                     </td>
                   ))}
                 </tr>

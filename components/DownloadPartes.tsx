@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import * as XLSX from "xlsx-js-style";
 import Notification from "./Notification";
+import { normalizeDescripcionParteExistente } from "@/lib/textFormatters";
 
 type ParteRegistro = {
   id: string;
@@ -187,7 +188,7 @@ export default function DownloadPartes({ sourceTable = "PARTES" }: DownloadParte
       "N° CAJA": item.n_caja || "",
       expediente: item.expediente || "",
       n_tomo: item.n_tomo || "",
-      descripcion: item.descripcion || "",
+      descripcion: normalizeDescripcionParteExistente(item.descripcion || ""),
       fecha_apertura: item.fecha_apertura || "",
       fecha_cierre: item.fecha_cierre || "",
       n_fojas: item.n_fojas || "",
@@ -323,7 +324,7 @@ export default function DownloadPartes({ sourceTable = "PARTES" }: DownloadParte
                   <tr key={item.id} className="border-t border-white/5 hover:bg-white/5">
                     <td className="p-3 text-center"><input type="checkbox" checked={selectedIds.includes(item.id)} onChange={() => setSelectedIds((prev) => prev.includes(item.id) ? prev.filter((i) => i !== item.id) : [...prev, item.id])} /></td>
                     <td className="p-3 font-mono text-indigo-300">{item.expediente}</td>
-                    <td className="p-3 truncate max-w-xs">{item.descripcion}</td>
+                    <td className="p-3 truncate max-w-xs">{normalizeDescripcionParteExistente(item.descripcion || "")}</td>
                     <td className="p-3 text-right">{item.n_fojas}</td>
                   </tr>
                 ))}

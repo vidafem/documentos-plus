@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabaseClient";
 import Notification from "./Notification";
 import ConfirmModal from "./ConfirmModal";
 import { useRecordLock } from "@/lib/useRecordLock";
+import { toTitleCaseWords } from "@/lib/textFormatters";
 
 type DelegacionViejaRow = {
   id: string | number;
@@ -73,7 +74,7 @@ const toDisplayDate = (value: string): string => {
   return `${match[3]}/${match[2]}/${match[1]}`;
 };
 
-const formatTitleCase = (str: string) => str.toLowerCase().replace(/\b\w/g, (l) => l.toUpperCase());
+const formatTitleCase = (str: string) => toTitleCaseWords(str);
 
 const formatSospechososInput = (value: string) => {
   const normalized = formatTitleCase(value).replace(/\s+,/g, ",").replace(/,\s*/g, ", ");

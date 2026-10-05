@@ -7,6 +7,7 @@ import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { supabase } from "@/lib/supabaseClient";
 import Notification from "./Notification";
+import { toTitleCaseWords } from "@/lib/textFormatters";
 
 type GenericRow = Record<string, unknown>;
 
@@ -226,14 +227,7 @@ const normalizePdfTemplateHtml = (template: string): string => {
   }
 };
 
-const toTitleCase = (value: string): string => {
-  const cleaned = value.toLowerCase().replace(/\s+/g, " ").trim();
-  if (!cleaned) return "";
-  return cleaned
-    .split(" ")
-    .map((word) => (word ? `${word[0].toUpperCase()}${word.slice(1)}` : ""))
-    .join(" ");
-};
+const toTitleCase = (value: string): string => toTitleCaseWords(value.trim());
 
 const isoDateToExcelSerial = (value: string): number | null => {
   const normalized = normalizeDateValue(value);

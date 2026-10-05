@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import Notification from "./Notification";
+import { toTitleCaseWords } from "@/lib/textFormatters";
 
 export default function FormDelegaciones() {
   // --- ESTADO DE UI ---
@@ -122,9 +123,7 @@ export default function FormDelegaciones() {
     setSugerencias([]);
   };
 
-  const formatTitleCase = (str: string) => {
-    return str.toLowerCase().replace(/\b\w/g, (l) => l.toUpperCase());
-  };
+  const formatTitleCase = (str: string) => toTitleCaseWords(str);
 
   const formatSospechososInput = (value: string) => {
     const normalized = formatTitleCase(value)

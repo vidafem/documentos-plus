@@ -7,6 +7,7 @@ import JSZip from "jszip";
 import * as XLSX from "xlsx-js-style";
 import { supabase } from "@/lib/supabaseClient";
 import Notification from "./Notification";
+import { toTitleCaseWords } from "@/lib/textFormatters";
 
 type ArchivoOption = "archivo_por_mes" | "archivo_total";
 type GenericRow = Record<string, unknown>;
@@ -79,17 +80,7 @@ const normalizeLookupKey = (value: unknown): string =>
 const buildFiscalKey = (fiscal: unknown, numfis: unknown): string =>
   `${normalizeLookupKey(fiscal)}|${String(numfis ?? "").trim()}`;
 
-const toTitleCase = (value: unknown): string => {
-  const cleaned = String(value ?? "")
-    .toLowerCase()
-    .replace(/\s+/g, " ")
-    .trim();
-  if (!cleaned) return "";
-  return cleaned
-    .split(" ")
-    .map((word) => (word ? `${word[0].toUpperCase()}${word.slice(1)}` : ""))
-    .join(" ");
-};
+const toTitleCase = (value: unknown): string => toTitleCaseWords(String(value ?? "").trim());
 
 const getYear = (value: unknown): string => {
   const normalized = normalizeDateValue(String(value ?? ""));

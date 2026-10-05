@@ -5,6 +5,13 @@ import jsPDF from "jspdf";
 import Notification from "./Notification";
 import ConfirmModal from "./ConfirmModal";
 import { useRecordLock } from "@/lib/useRecordLock";
+import {
+  toTitleCaseWords,
+  toSentenceCase,
+  formatDetenidosList,
+  formatDescripcionParteCompleta,
+  normalizeDescripcionParteExistente,
+} from "@/lib/textFormatters";
 
 type ParteRow = {
   id: string | number;
@@ -24,21 +31,6 @@ type EditPartesProps = {
 
 const normalizeYearInput = (value: string) => value.replace(/\D/g, "").slice(0, 4);
 const normalizeUpper = (value: string) => value.toUpperCase();
-const normalizeDetenidosForSave = (value: string): string =>
-  normalizeUpper(value)
-    .replace(/\s*,\s*/g, ", ")
-    .replace(/\s+/g, " ")
-    .trim();
-
-const getEtiquetaDetenidos = (detenidosStr: string): string => {
-  const limpio = detenidosStr.trim();
-  if (!limpio) return "DETENIDO";
-  const personas = limpio.split(",").map((p) => p.trim()).filter(Boolean);
-  if (personas.length > 1) return "DETENIDOS";
-  const palabras = limpio.split(/\s+/).filter(Boolean);
-  if (palabras.length > 4) return "DETENIDOS";
-  return "DETENIDO";
-};
 
 const parseIsoDateParts = (value?: string) => {
   const match = String(value || "").trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -60,7 +52,7 @@ const parseDescripcionParts = (descripcion?: string) => {
     }
   }
 
-  const matchDetenidos = text.match(/DETENIDO(?:\(S\)|S)?:\s*([^;]+)(?:;|$)/i);
+  const matchDetenidos = text.match(/(?:DETENIDO|DETENIDOS|SOSPECHOSO|SOSPECHOSOS)(?:\(S\))?:\s*([^;]+)(?:;|$)/i);
   const matchDelito = text.match(/DELITO:\s*(.+)$/i);
 
   return {
@@ -134,8 +126,8 @@ export default function EditPartes({ sourceTable = "PARTES" }: EditPartesProps) 
     setDiaApertura(dayAp);
     setDiaCierre(dayCi);
     setPpUltimos10(descParts.ppUltimos);
-    setDetenidos(descParts.detenidos);
-    setDelito(descParts.delito);
+    setDetenidos(formatDetenidosList(descParts.detenidos));
+    setDelito(toSentenceCase(descParts.delito));
     setFojas(String(item.n_fojas || ""));
     setNTomo(String(item.n_tomo || "1"));
     setNCaja(String(item.n_caja || ""));
@@ -147,9 +139,9 @@ export default function EditPartes({ sourceTable = "PARTES" }: EditPartesProps) 
   };
 
   const buscarDelitos = async (texto: string) => {
-    const textoUpper = normalizeUpper(texto);
-    setDelito(textoUpper);
-    if (textoUpper.length < 3) {
+    const textoOracion = toSentenceCase(texto);
+    setDelito(textoOracion);
+    if (texto.trim().length < 3) {
       setSugerencias([]);
       return;
     }
@@ -157,7 +149,7 @@ export default function EditPartes({ sourceTable = "PARTES" }: EditPartesProps) 
       const { data, error } = await supabase
         .from("delitos")
         .select(col)
-        .ilike(col, `%${textoUpper}%`)
+        .ilike(col, `%${texto.trim()}%`)
         .limit(100);
 
       if (error) continue;
@@ -166,7 +158,7 @@ export default function EditPartes({ sourceTable = "PARTES" }: EditPartesProps) 
       const normalizadas = filas
         .map((row) => {
           const registro = (row && typeof row === "object" ? row : {}) as Record<string, unknown>;
-          return normalizeUpper(String(registro[col] || ""));
+          return toSentenceCase(String(registro[col] || ""));
         })
         .filter((d) => d.trim().length > 0);
 
@@ -193,7 +185,7 @@ export default function EditPartes({ sourceTable = "PARTES" }: EditPartesProps) 
 
     e.preventDefault();
     const updated = `${detenidos.slice(0, start)}, ${detenidos.slice(end)}`;
-    setDetenidos(normalizeUpper(updated));
+    setDetenidos(toTitleCaseWords(updated));
   };
 
   const handleUpdate = async (e: React.FormEvent) => {
@@ -209,10 +201,7 @@ export default function EditPartes({ sourceTable = "PARTES" }: EditPartesProps) 
     }
 
     const codigoPPFull = `PP-${anioRegistro}${mesProceso}${diaCierre.padStart(2, "0")}${ppUltimos10}`;
-    const detenidosNormalizados = normalizeDetenidosForSave(detenidos);
-    const delitoNormalizado = normalizeUpper(delito).trim();
-    const etiquetaDetenido = getEtiquetaDetenidos(detenidos);
-    const descFinal = `${codigoPPFull}; ${etiquetaDetenido}: ${detenidosNormalizados}; DELITO: ${delitoNormalizado}`;
+    const descFinal = formatDescripcionParteCompleta(codigoPPFull, detenidos, delito);
 
     const payload = {
       n_caja: nCaja,
@@ -407,10 +396,11 @@ export default function EditPartes({ sourceTable = "PARTES" }: EditPartesProps) 
             <textarea
               required
               value={detenidos}
-              onChange={(e) => setDetenidos(normalizeUpper(e.target.value))}
+              onChange={(e) => setDetenidos(e.target.value)}
+              onBlur={() => setDetenidos((prev) => formatDetenidosList(prev))}
               onKeyDown={handleDetenidosKeyDown}
               className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white outline-none focus:border-indigo-500 h-14 resize-none custom-scrollbar"
-              placeholder="NOMBRES DE LOS DETENIDOS..."
+              placeholder="Nombres de los detenidos..."
             />
           </div>
 
@@ -431,8 +421,8 @@ export default function EditPartes({ sourceTable = "PARTES" }: EditPartesProps) 
                   {sugerencias.map((s, i) => (
                     <li
                       key={i}
-                      onClick={() => { setDelito(normalizeUpper(s.delito)); setSugerencias([]); }}
-                      className="p-2 text-[10px] text-white hover:bg-indigo-600 cursor-pointer border-b border-white/5 last:border-none uppercase transition-colors"
+                      onClick={() => { setDelito(toSentenceCase(s.delito)); setSugerencias([]); }}
+                      className="p-2 text-[10px] text-white hover:bg-indigo-600 cursor-pointer border-b border-white/5 last:border-none transition-colors"
                     >
                       {s.delito}
                     </li>
@@ -520,7 +510,9 @@ export default function EditPartes({ sourceTable = "PARTES" }: EditPartesProps) 
                         </span>
                       )}
                     </div>
-                    <span className="text-[9px] text-white/40 truncate max-w-[200px] md:max-w-[400px]">{item.descripcion}</span>
+                    <span className="text-[9px] text-white/40 truncate max-w-[200px] md:max-w-[400px]">
+                      {normalizeDescripcionParteExistente(item.descripcion || "")}
+                    </span>
                     <span className="text-[8px] text-white/30 font-mono">
                       Apertura: {item.fecha_apertura || "N/A"} | Cierre: {item.fecha_cierre || "N/A"}
                     </span>

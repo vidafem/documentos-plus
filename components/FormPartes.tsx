@@ -5,6 +5,12 @@ import Notification from "./Notification";
 import HorizontalPicker from "./HorizontalPicker";
 import { consultarFiscaliaConFallback } from "@/lib/fiscaliaClient";
 import ModalBusquedaCedulaFiscalia, { FiscaliaRecordItem } from "./ModalBusquedaCedulaFiscalia";
+import {
+  toTitleCaseWords,
+  toSentenceCase,
+  formatDetenidosList,
+  formatDescripcionParteCompleta,
+} from "@/lib/textFormatters";
 
 const normalizeYearInput = (value: string) => value.replace(/\D/g, "").slice(0, 4);
 const normalizeUpper = (value: string) => value.toUpperCase();
@@ -16,22 +22,6 @@ const getSequenceFromExpediente = (expediente: string, year: string): number => 
   if (match[2] !== year) return 0;
   const sequence = Number(match[1]);
   return Number.isFinite(sequence) ? sequence : 0;
-};
-
-const normalizeDetenidosForSave = (value: string): string =>
-  normalizeUpper(value)
-    .replace(/\s*,\s*/g, ", ")
-    .replace(/\s+/g, " ")
-    .trim();
-
-const getEtiquetaDetenidos = (detenidosStr: string): string => {
-  const limpio = detenidosStr.trim();
-  if (!limpio) return "DETENIDO";
-  const personas = limpio.split(",").map((p) => p.trim()).filter(Boolean);
-  if (personas.length > 1) return "DETENIDOS";
-  const palabras = limpio.split(/\s+/).filter(Boolean);
-  if (palabras.length > 4) return "DETENIDOS";
-  return "DETENIDO";
 };
 
 export default function FormPartes() {
@@ -291,7 +281,7 @@ export default function FormPartes() {
   const handleAutofillFiscalia = () => {
     if (!fiscaliaResult) return;
     if (fiscaliaResult.detenidos) {
-      setDetenidos(normalizeUpper(fiscaliaResult.detenidos));
+      setDetenidos(formatDetenidosList(fiscaliaResult.detenidos));
     }
     if (fiscaliaResult.delito) {
       void buscarDelitos(fiscaliaResult.delito);
@@ -300,7 +290,7 @@ export default function FormPartes() {
 
   const handleSelectRecordFromCedula = (record: FiscaliaRecordItem, applyDate = true) => {
     if (record.detenidos) {
-      setDetenidos(normalizeUpper(record.detenidos));
+      setDetenidos(formatDetenidosList(record.detenidos));
     }
     if (record.delito) {
       void buscarDelitos(record.delito);
@@ -347,14 +337,14 @@ export default function FormPartes() {
 
   // 2. BUSCADOR DE DELITOS
   const buscarDelitos = async (texto: string) => {
-    const textoUpper = normalizeUpper(texto);
-    setDelito(textoUpper);
-    if (textoUpper.length < 3) { setSugerencias([]); return; }
+    const textoOracion = toSentenceCase(texto);
+    setDelito(textoOracion);
+    if (texto.trim().length < 3) { setSugerencias([]); return; }
     for (const col of COL_DELITO_CANDIDATAS) {
       const { data, error } = await supabase
         .from("delitos")
         .select(col)
-        .ilike(col, `%${textoUpper}%`)
+        .ilike(col, `%${texto.trim()}%`)
         .limit(100);
 
       if (error) {
@@ -365,7 +355,7 @@ export default function FormPartes() {
       const normalizadas = filas
         .map((row) => {
           const registro = (row && typeof row === "object" ? row : {}) as Record<string, unknown>;
-          return normalizeUpper(String(registro[col] || ""));
+          return toSentenceCase(String(registro[col] || ""));
         })
         .filter((d) => d.trim().length > 0);
 
@@ -401,7 +391,7 @@ export default function FormPartes() {
 
     e.preventDefault();
     const updated = `${detenidos.slice(0, start)}, ${detenidos.slice(end)}`;
-    setDetenidos(normalizeUpper(updated));
+    setDetenidos(toTitleCaseWords(updated));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -432,10 +422,7 @@ export default function FormPartes() {
     const proximoExpediente = maxSequence + 1;
     const expedienteFormateado = formatExpediente(proximoExpediente, anioRegistro);
     const codigoPPFull = `PP-${anioRegistro}${mesProceso}${diaCierre.padStart(2, '0')}${ppUltimos10}`;
-    const detenidosNormalizados = normalizeDetenidosForSave(detenidos);
-    const delitoNormalizado = normalizeUpper(delito).trim();
-    const etiquetaDetenido = getEtiquetaDetenidos(detenidos);
-    const descFinal = `${codigoPPFull}; ${etiquetaDetenido}: ${detenidosNormalizados}; DELITO: ${delitoNormalizado}`;
+    const descFinal = formatDescripcionParteCompleta(codigoPPFull, detenidos, delito);
 
     const registro = {
       expediente: expedienteFormateado,
@@ -591,7 +578,15 @@ export default function FormPartes() {
                 </button>
               )}
             </div>
-            <textarea required value={detenidos} onChange={e => setDetenidos(normalizeUpper(e.target.value))} onKeyDown={handleDetenidosKeyDown} className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white outline-none focus:border-indigo-500 h-14 resize-none custom-scrollbar" placeholder="NOMBRES DE LOS DETENIDOS..." />
+            <textarea
+              required
+              value={detenidos}
+              onChange={(e) => setDetenidos(e.target.value)}
+              onBlur={() => setDetenidos((prev) => formatDetenidosList(prev))}
+              onKeyDown={handleDetenidosKeyDown}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white outline-none focus:border-indigo-500 h-14 resize-none custom-scrollbar"
+              placeholder="Nombres de los detenidos (ej: Sarango Lopez Rosa Elena, Coronel Montaño...)"
+            />
           </div>
 
           {/* FILA 4: DELITO + FOJAS */}
@@ -602,7 +597,7 @@ export default function FormPartes() {
               {sugerencias.length > 0 && (
                 <ul className="absolute z-50 w-full bg-neutral-950 border border-white/10 rounded-xl mt-1 shadow-2xl max-h-32 overflow-y-auto custom-scrollbar">
                   {sugerencias.map((s, i) => (
-                    <li key={i} onClick={() => { setDelito(normalizeUpper(s.delito)); setSugerencias([]); }} className="p-2 text-[10px] text-white hover:bg-indigo-600 cursor-pointer border-b border-white/5 last:border-none uppercase transition-colors">
+                    <li key={i} onClick={() => { setDelito(toSentenceCase(s.delito)); setSugerencias([]); }} className="p-2 text-[10px] text-white hover:bg-indigo-600 cursor-pointer border-b border-white/5 last:border-none transition-colors">
                       {s.delito}
                     </li>
                   ))}
