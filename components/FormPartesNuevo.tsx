@@ -244,9 +244,8 @@ export default function FormPartesNuevo() {
   useEffect(() => {
     const anioNorm = normalizeYearInput(anio);
     const cleanedDigits = ppUltimos10.replace(/\D/g, "");
-    // Regla estricta: NO buscar hasta que el usuario termine de escribir al menos el 11vo dígito
-    // (algunos partes tienen 11 dígitos y otros hasta 12, sin contar el prefijo PP-YYYYMMDD)
-    if (anioNorm.length !== 4 || cleanedDigits.length < 11) {
+    // Consultar automáticamente a partir del 10mo dígito (acepta de 10 a 12 dígitos, sin contar el prefijo PP-YYYYMMDD)
+    if (anioNorm.length !== 4 || cleanedDigits.length < 10) {
       setFiscaliaStatus("idle");
       setFiscaliaResult(null);
       return;
@@ -396,6 +395,21 @@ export default function FormPartesNuevo() {
     setSugerencias([]);
   };
 
+  const handleDetenidosChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const textarea = e.target;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    
+    // Convierte en tiempo real: primera letra de cada palabra en mayúscula, resto minúscula
+    const formatted = toTitleCaseWords(textarea.value);
+    setDetenidos(formatted);
+
+    // Mantener la posición del cursor para no interrumpir la escritura continua
+    requestAnimationFrame(() => {
+      textarea.setSelectionRange(start, end);
+    });
+  };
+
   const handleDetenidosKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key !== " " || e.ctrlKey || e.metaKey || e.altKey) return;
 
@@ -412,6 +426,9 @@ export default function FormPartesNuevo() {
     e.preventDefault();
     const updated = `${detenidos.slice(0, start)}, ${detenidos.slice(end)}`;
     setDetenidos(toTitleCaseWords(updated));
+    requestAnimationFrame(() => {
+      textarea.setSelectionRange(start + 2, start + 2);
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -540,9 +557,9 @@ export default function FormPartesNuevo() {
             </div>
           </div>
 
-          {/* FILA 2: CÓDIGO PP (11 O 12 DÍGITOS FINALES) */}
+          {/* FILA 2: CÓDIGO PP (10 A 12 DÍGITOS FINALES) */}
           <div className="space-y-0.5">
-            <label className="text-[8px] font-bold text-white/30 uppercase">Código PP (11 o 12 dígitos finales)</label>
+            <label className="text-[8px] font-bold text-white/30 uppercase">Código PP (10 a 12 dígitos finales)</label>
             <div className={`flex items-center bg-white/5 border rounded-xl overflow-hidden h-9 ${
               ppUnicidad === "unique" ? "border-emerald-500 focus-within:border-emerald-500" :
               ppUnicidad === "duplicate" ? "border-blue-500 focus-within:border-blue-500" :
@@ -551,7 +568,7 @@ export default function FormPartesNuevo() {
               <span className="bg-white/10 px-3 h-full flex items-center text-[10px] font-mono text-white/40">
                 PP-{anio}{mesProceso}{diaCierre.padStart(2, "0")}
               </span>
-              <input required type="text" maxLength={12} value={ppUltimos10} onChange={e => setPpUltimos10(e.target.value)} className="flex-1 bg-transparent px-3 text-sm text-white outline-none font-bold" placeholder="00000000000" />
+              <input required type="text" maxLength={12} value={ppUltimos10} onChange={e => setPpUltimos10(e.target.value)} className="flex-1 bg-transparent px-3 text-sm text-white outline-none font-bold" placeholder="0000000000" />
             </div>
             {ppUnicidad === "unique" && <p className="text-[9px] text-emerald-400 font-bold uppercase mt-0.5 px-1">Código PP Disponible</p>}
             {ppUnicidad === "duplicate" && <p className="text-[9px] text-blue-400 font-bold uppercase mt-0.5 px-1">Código PP Duplicado (Revisar)</p>}
@@ -604,7 +621,7 @@ export default function FormPartesNuevo() {
             <textarea
               required
               value={detenidos}
-              onChange={(e) => setDetenidos(e.target.value)}
+              onChange={handleDetenidosChange}
               onBlur={() => setDetenidos((prev) => formatDetenidosList(prev))}
               onKeyDown={handleDetenidosKeyDown}
               className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white outline-none focus:border-indigo-500 h-14 resize-none custom-scrollbar"

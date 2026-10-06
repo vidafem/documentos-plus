@@ -135,9 +135,12 @@ async function fetchWithCustomProxy(valor: string, criterioNumber: number, proxy
   const separator = cleanProxy.includes("?") ? "&" : "?";
   const url = `${cleanProxy}${separator}criterio=${criterioNumber}&valor=${encodeURIComponent(valor)}`;
   const res = await fetch(url, { 
-    headers: { Accept: "application/json" }, 
+    headers: { 
+      Accept: "application/json, text/javascript, */*; q=0.01",
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    }, 
     cache: "no-store",
-    signal: AbortSignal.timeout(12000)
+    signal: AbortSignal.timeout(15000)
   });
   if (!res.ok) {
     throw new Error(`Error en Proxy (${res.status})`);
@@ -169,7 +172,7 @@ export async function OPTIONS() {
 
 function normalizeProxyUrl(rawUrl: string | null | undefined): string | null {
   if (!rawUrl) return null;
-  let trimmed = rawUrl.trim();
+  let trimmed = rawUrl.trim().replace(/^["']|["']$/g, "").trim();
   if (!trimmed) return null;
   if (!/^https?:\/\//i.test(trimmed)) {
     trimmed = `https://${trimmed}`;
@@ -178,10 +181,20 @@ function normalizeProxyUrl(rawUrl: string | null | undefined): string | null {
 }
 
 function resolveProxyUrl(request: NextRequest, searchParams: URLSearchParams): string | null {
+  // 1. Variable configurada en Vercel (prioridad global para que funcione para TODOS los pasantes)
+  const fromEnv =
+    process.env.FISCALIA_PROXY_URL ||
+    process.env.NEXT_PUBLIC_FISCALIA_PROXY_URL ||
+    process.env.NEXT_PUBLIC_FISCALIA_BRIDGE_URL ||
+    process.env.FISCALIA_BRIDGE_URL ||
+    process.env.CLOUDFLARE_TUNNEL_URL ||
+    process.env.NEXT_PUBLIC_CLOUDFLARE_TUNNEL_URL;
+
+  // 2. Encabezado o parámetro de consulta (respaldo)
   const fromHeader = request.headers.get("x-fiscalia-proxy-url");
   const fromQuery = searchParams.get("proxy_url");
-  const fromEnv = process.env.FISCALIA_PROXY_URL;
-  return normalizeProxyUrl(fromHeader || fromQuery || fromEnv);
+
+  return normalizeProxyUrl(fromEnv || fromHeader || fromQuery);
 }
 
 export async function GET(request: NextRequest) {

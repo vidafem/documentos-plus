@@ -246,14 +246,14 @@ export default function PanelDiagnosticoFiscalia() {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <span className="text-sm">🔗</span>
-            <span className="text-xs font-bold text-white">URL Activa del Túnel de Cloudflare:</span>
+            <span className="text-xs font-bold text-white">URL del Túnel de Cloudflare:</span>
             {isSavedCustom ? (
-              <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded border border-emerald-500/30">
-                Personalizada (Navegador)
+              <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded border border-amber-500/30">
+                Personalizada (Solo este navegador)
               </span>
             ) : (
-              <span className="text-[10px] bg-white/10 text-white/60 px-2 py-0.5 rounded border border-white/15">
-                Por defecto (Vercel ENV)
+              <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded border border-emerald-500/30">
+                Global (Vercel ENV - Activo para todos)
               </span>
             )}
           </div>
@@ -265,7 +265,7 @@ export default function PanelDiagnosticoFiscalia() {
         </div>
 
         <p className="text-[11px] text-white/60 leading-relaxed">
-          Cada vez que inicias <code className="text-indigo-300 bg-white/5 px-1 py-0.5 rounded font-mono">iniciar-tunel-cloudflare.bat</code>, Cloudflare genera una URL nueva. Pégala aquí directamente para conectar al instante sin necesidad de modificar Vercel ni redesplegar:
+          Para que funcione para <strong>todos tus pasantes</strong> a la vez: coloca la URL en la variable <code className="text-indigo-300 bg-white/5 px-1 py-0.5 rounded font-mono">FISCALIA_PROXY_URL</code> en Vercel y haz un <strong>Redeploy</strong>.
         </p>
 
         <div className="flex flex-wrap sm:flex-nowrap gap-2 items-center pt-1">

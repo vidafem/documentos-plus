@@ -183,14 +183,37 @@ export async function consultarFiscaliaConFallback(queryString: string) {
         Boolean(json.error && (json.error.includes("403") || json.error.includes("Fiscalía") || json.error.includes("WAF") || json.error.includes("Proxy")));
 
       if (isCloudBlocked && !isLocal) {
-        // Verificar si se configuró un túnel o puente público en las variables de entorno
-        const bridgeUrl = process.env.NEXT_PUBLIC_FISCALIA_BRIDGE_URL;
+        const bridgeUrl =
+          process.env.NEXT_PUBLIC_FISCALIA_BRIDGE_URL ||
+          process.env.NEXT_PUBLIC_FISCALIA_PROXY_URL;
         if (bridgeUrl) {
           try {
-            const bridgeRes = await fetch(`${bridgeUrl.replace(/\/$/, "")}/api/consulta-fiscalia?${queryString}`);
+            const cleanBridge = bridgeUrl.replace(/\/+$/, "");
+            // El puente local responde directamente en la raíz /?query
+            const bridgeRes = await fetch(`${cleanBridge}?${queryString}`, { cache: "no-store" });
             if (bridgeRes.ok) {
               const bridgeJson = await bridgeRes.json();
               if (bridgeJson.success) return bridgeJson;
+              if (bridgeJson.cabecera && Array.isArray(bridgeJson.cabecera) && bridgeJson.cabecera.length > 0) {
+                const row = bridgeJson.cabecera[0];
+                const sujetosRaw = Array.isArray(row.sujetos) ? row.sujetos : [];
+                const procs = sujetosRaw
+                  .filter((s: { tipo?: string }) => {
+                    const t = String(s.tipo || "").trim().toUpperCase();
+                    return t === "PROCESADO" || t === "SOSPECHOSO" || t === "APREHENDIDO" || t === "DETENIDO";
+                  })
+                  .map((s: { persona?: string }) => String(s.persona || "").trim().toUpperCase())
+                  .filter(Boolean);
+                return {
+                  success: true,
+                  found: true,
+                  delito: String(row.gen_delito_tipopenal || "").trim().toUpperCase(),
+                  detenidos: procs.join(", "),
+                  procesadosCount: procs.length,
+                  fecha: String(row.fecha || "").trim(),
+                  ndd: String(row.ndd || row.ndd1 || ""),
+                };
+              }
             }
           } catch {
             // El puente no respondió

@@ -171,6 +171,21 @@ export default function EditPartes({ sourceTable = "PARTES" }: EditPartesProps) 
     setSugerencias([]);
   };
 
+  const handleDetenidosChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const textarea = e.target;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    
+    // Convierte en tiempo real: primera letra de cada palabra en mayúscula, resto minúscula
+    const formatted = toTitleCaseWords(textarea.value);
+    setDetenidos(formatted);
+
+    // Mantener la posición del cursor
+    requestAnimationFrame(() => {
+      textarea.setSelectionRange(start, end);
+    });
+  };
+
   const handleDetenidosKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key !== " " || e.ctrlKey || e.metaKey || e.altKey) return;
     const textarea = e.currentTarget;
@@ -186,6 +201,9 @@ export default function EditPartes({ sourceTable = "PARTES" }: EditPartesProps) 
     e.preventDefault();
     const updated = `${detenidos.slice(0, start)}, ${detenidos.slice(end)}`;
     setDetenidos(toTitleCaseWords(updated));
+    requestAnimationFrame(() => {
+      textarea.setSelectionRange(start + 2, start + 2);
+    });
   };
 
   const handleUpdate = async (e: React.FormEvent) => {
@@ -396,7 +414,7 @@ export default function EditPartes({ sourceTable = "PARTES" }: EditPartesProps) 
             <textarea
               required
               value={detenidos}
-              onChange={(e) => setDetenidos(e.target.value)}
+              onChange={handleDetenidosChange}
               onBlur={() => setDetenidos((prev) => formatDetenidosList(prev))}
               onKeyDown={handleDetenidosKeyDown}
               className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white outline-none focus:border-indigo-500 h-14 resize-none custom-scrollbar"
