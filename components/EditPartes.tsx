@@ -12,6 +12,11 @@ import {
   formatDescripcionParteCompleta,
   normalizeDescripcionParteExistente,
 } from "@/lib/textFormatters";
+import {
+  formatExpediente,
+  getSequenceFromExpediente,
+  acomodarSecuenciaPorFechaCierre,
+} from "@/lib/partesSequence";
 
 type ParteRow = {
   id: string | number;
@@ -68,19 +73,30 @@ export default function EditPartes({ sourceTable = "PARTES" }: EditPartesProps) 
     "delito_tipificado_en_delegacion",
   ];
 
+  const defaultYear = sourceTable === "PARTES" ? "2026" : "2021";
+
   const [busqueda, setBusqueda] = useState("");
   const [resultados, setResultados] = useState<ParteRow[]>([]);
   const [editando, setEditando] = useState<ParteRow | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isAcomodando, setIsAcomodando] = useState(false);
+  const [anioAcomodar, setAnioAcomodar] = useState(defaultYear);
   const [notification, setNotification] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
   const [itemToDelete, setItemToDelete] = useState<string | number | null>(null);
   const { isLockedByOther, requestLock, releaseLock } = useRecordLock();
 
   // Estados desglosados del registro en edición
-  const [anio, setAnio] = useState("2021");
-  const [mesProceso, setMesProceso] = useState("01");
+  const [expedienteEditado, setExpedienteEditado] = useState("");
+
+  // Fechas independientes para Apertura y Cierre (Cierre rige orden y código PP)
+  const [anioApertura, setAnioApertura] = useState(defaultYear);
+  const [mesApertura, setMesApertura] = useState("01");
   const [diaApertura, setDiaApertura] = useState("01");
+
+  const [anioCierre, setAnioCierre] = useState(defaultYear);
+  const [mesCierre, setMesCierre] = useState("01");
   const [diaCierre, setDiaCierre] = useState("01");
+
   const [ppUltimos10, setPpUltimos10] = useState("");
   const [detenidos, setDetenidos] = useState("");
   const [delito, setDelito] = useState("");
@@ -111,20 +127,28 @@ export default function EditPartes({ sourceTable = "PARTES" }: EditPartesProps) 
     }
 
     setEditando(item);
+    setExpedienteEditado(item.expediente || "");
 
     const aperturaParts = parseIsoDateParts(item.fecha_apertura);
     const cierreParts = parseIsoDateParts(item.fecha_cierre);
     const descParts = parseDescripcionParts(item.descripcion);
 
-    const year = cierreParts.year || aperturaParts.year || "2021";
-    const month = cierreParts.month || aperturaParts.month || "01";
-    const dayAp = aperturaParts.day || "01";
+    const yearCierre = cierreParts.year || aperturaParts.year || defaultYear;
+    const monthCierre = cierreParts.month || aperturaParts.month || "01";
     const dayCi = cierreParts.day || "01";
 
-    setAnio(year);
-    setMesProceso(month);
-    setDiaApertura(dayAp);
+    const yearApertura = aperturaParts.year || yearCierre;
+    const monthApertura = aperturaParts.month || monthCierre;
+    const dayAp = aperturaParts.day || dayCi;
+
+    setAnioCierre(yearCierre);
+    setMesCierre(monthCierre);
     setDiaCierre(dayCi);
+
+    setAnioApertura(yearApertura);
+    setMesApertura(monthApertura);
+    setDiaApertura(dayAp);
+
     setPpUltimos10(descParts.ppUltimos);
     setDetenidos(formatDetenidosList(descParts.detenidos));
     setDelito(toSentenceCase(descParts.delito));
@@ -136,6 +160,19 @@ export default function EditPartes({ sourceTable = "PARTES" }: EditPartesProps) 
   const cancelEdit = () => {
     void releaseLock();
     setEditando(null);
+  };
+
+  const handleYearCierreChange = (newYear: string) => {
+    const clean = normalizeYearInput(newYear);
+    setAnioCierre(clean);
+    // Si el expediente tiene el formato 0001-YYYY, actualizar el sufijo del año automáticamente
+    if (clean.length === 4) {
+      setExpedienteEditado((prev) => {
+        const match = prev.match(/^(\d+)-(\d{4})$/);
+        if (match) return `${match[1]}-${clean}`;
+        return prev;
+      });
+    }
   };
 
   const buscarDelitos = async (texto: string) => {
@@ -211,22 +248,26 @@ export default function EditPartes({ sourceTable = "PARTES" }: EditPartesProps) 
     if (!editando) return;
     setIsLoading(true);
 
-    const anioRegistro = normalizeYearInput(anio);
-    if (anioRegistro.length !== 4) {
+    const anioCi = normalizeYearInput(anioCierre);
+    if (anioCi.length !== 4) {
       setIsLoading(false);
-      setNotification({ message: "El año debe tener 4 dígitos.", type: "error" });
+      setNotification({ message: "El año de cierre debe tener 4 dígitos.", type: "error" });
       return;
     }
 
-    const codigoPPFull = `PP-${anioRegistro}${mesProceso}${diaCierre.padStart(2, "0")}${ppUltimos10}`;
+    const anioAp = normalizeYearInput(anioApertura) || anioCi;
+    const codigoPPFull = `PP-${anioCi}${mesCierre}${diaCierre.padStart(2, "0")}${ppUltimos10}`;
     const descFinal = formatDescripcionParteCompleta(codigoPPFull, detenidos, delito);
 
+    const expFinal = expedienteEditado.trim() || String(editando.expediente || "");
+
     const payload = {
+      expediente: expFinal,
       n_caja: nCaja,
       n_tomo: nTomo,
       n_fojas: fojas.substring(0, 3),
-      fecha_apertura: `${anioRegistro}-${mesProceso}-${diaApertura.padStart(2, "0")}`,
-      fecha_cierre: `${anioRegistro}-${mesProceso}-${diaCierre.padStart(2, "0")}`,
+      fecha_apertura: `${anioAp}-${mesApertura}-${diaApertura.padStart(2, "0")}`,
+      fecha_cierre: `${anioCi}-${mesCierre}-${diaCierre.padStart(2, "0")}`,
       descripcion: descFinal,
     };
 
@@ -240,6 +281,48 @@ export default function EditPartes({ sourceTable = "PARTES" }: EditPartesProps) 
       void releaseLock();
       setEditando(null);
       handleSearch(busqueda);
+    }
+  };
+
+  const handleAcomodarSecuencia = async (targetYear: string) => {
+    const safeYear = normalizeYearInput(targetYear);
+    if (safeYear.length !== 4) {
+      setNotification({ message: "Ingresa un año válido de 4 dígitos.", type: "error" });
+      return;
+    }
+
+    const confirmado = window.confirm(
+      `¿Deseas acomodar y renumerar correlativamente todos los expedientes del año ${safeYear} en ${sourceTable} según su Fecha de Cierre?`
+    );
+    if (!confirmado) return;
+
+    setIsAcomodando(true);
+    try {
+      const res = await acomodarSecuenciaPorFechaCierre(sourceTable, safeYear);
+      if (res.success) {
+        setNotification({
+          message: `Secuencia del año ${safeYear} acomodada: ${res.updatedCount} expedientes reordenados por fecha de cierre. Total: ${res.total}.`,
+          type: "success",
+        });
+        if (editando) {
+          const { data: updatedRecord } = await supabase
+            .from(sourceTable)
+            .select("expediente")
+            .eq("id", editando.id)
+            .single();
+          if (updatedRecord?.expediente) {
+            setExpedienteEditado(updatedRecord.expediente);
+          }
+        }
+        handleSearch(busqueda);
+      } else {
+        setNotification({ message: res.error || "Error al acomodar secuencia", type: "error" });
+      }
+    } catch (err) {
+      console.error(err);
+      setNotification({ message: "Error al procesar acomodo de secuencia", type: "error" });
+    } finally {
+      setIsAcomodando(false);
     }
   };
 
@@ -332,69 +415,145 @@ export default function EditPartes({ sourceTable = "PARTES" }: EditPartesProps) 
 
       {editando ? (
         <form onSubmit={handleUpdate} className="bg-white/5 rounded-3xl p-6 border border-indigo-500/30 space-y-4 animate-in slide-in-from-right-4 duration-300 max-w-4xl mx-auto shadow-2xl">
-          <div className="flex justify-between items-center border-b border-white/5 pb-2">
+          <div className="flex flex-wrap justify-between items-center border-b border-white/5 pb-2 gap-2">
             <h3 className="text-sm font-black text-indigo-400 italic uppercase">
               Modo Edición Partes: <span className="font-mono text-white">{editando.expediente}</span>
             </h3>
             <span className="text-[10px] text-white/50 bg-white/5 px-2.5 py-1 rounded-md font-mono">Tabla: {sourceTable}</span>
           </div>
 
-          {/* CRONOLOGÍA / FECHAS */}
-          <div className="grid grid-cols-4 gap-2 bg-black/60 p-2.5 rounded-xl border border-white/5">
-            <div className="space-y-0.5">
-              <label className="text-[8px] font-bold text-white/30 uppercase">Año</label>
+          {/* EDITAR EXPEDIENTE + BOTÓN ACOMODAR SECUENCIA */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-2 bg-indigo-950/20 p-3 rounded-2xl border border-indigo-500/20 items-end">
+            <div className="md:col-span-6 space-y-0.5">
+              <label className="text-[8px] font-bold text-indigo-300 uppercase">Expediente (Correlativo-Año)</label>
               <input
                 type="text"
-                maxLength={4}
-                value={anio}
-                onChange={(e) => setAnio(normalizeYearInput(e.target.value))}
-                className="w-full bg-white/5 border border-white/10 rounded-lg py-1 text-xs text-center text-white font-bold outline-none focus:border-indigo-500"
+                value={expedienteEditado}
+                onChange={(e) => setExpedienteEditado(e.target.value.toUpperCase())}
+                className="w-full bg-black/60 border border-indigo-500/40 rounded-xl px-3 py-2 text-xs font-mono text-white font-bold outline-none focus:border-indigo-400"
+                placeholder="0001-2026"
               />
             </div>
-            <div className="space-y-0.5">
-              <label className="text-[8px] font-bold text-white/30 uppercase">Mes</label>
-              <select
-                value={mesProceso}
-                onChange={(e) => setMesProceso(e.target.value)}
-                className="w-full bg-neutral-900 text-white border border-white/10 rounded-lg py-1 text-xs outline-none"
+            <div className="md:col-span-6">
+              <button
+                type="button"
+                onClick={() => void handleAcomodarSecuencia(anioCierre)}
+                disabled={isAcomodando}
+                className="w-full py-2 bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-500/40 rounded-xl text-[9px] font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                title="Acomodar correlativamente todos los expedientes de este año por Fecha de Cierre"
               >
-                {["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"].map((m) => (
-                  <option key={m} value={m} className="bg-neutral-900 text-white">{m}</option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-0.5">
-              <label className="text-[8px] font-bold text-indigo-400 uppercase">Día Apert.</label>
-              <select
-                value={diaApertura}
-                onChange={(e) => setDiaApertura(e.target.value)}
-                className="w-full bg-neutral-900 text-white border border-white/10 rounded-lg py-1 text-xs outline-none"
-              >
-                {dias.map((d) => (
-                  <option key={d} value={d} className="bg-neutral-900 text-white">{d}</option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-0.5">
-              <label className="text-[8px] font-bold text-indigo-400 uppercase">Día Cierre</label>
-              <select
-                value={diaCierre}
-                onChange={(e) => setDiaCierre(e.target.value)}
-                className="w-full bg-neutral-900 text-white border border-white/10 rounded-lg py-1 text-xs outline-none"
-              >
-                {dias.map((d) => (
-                  <option key={d} value={d} className="bg-neutral-900 text-white">{d}</option>
-                ))}
-              </select>
+                {isAcomodando ? "Acomodando..." : `⚡ Acomodar Secuencia por Fecha de Cierre (${anioCierre})`}
+              </button>
             </div>
           </div>
 
-          {/* CÓDIGO PP (RECALCULADO CON FECHA) */}
+          {/* CRONOLOGÍA (APERTURA Y CIERRE INDEPENDIENTES) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+            {/* CARD 1: FECHA DE APERTURA */}
+            <div className="bg-black/60 p-2.5 rounded-xl border border-white/5 space-y-1">
+              <div className="flex items-center justify-between pb-1 border-b border-white/5">
+                <span className="text-[9px] font-bold text-white/60 uppercase flex items-center gap-1">
+                  📅 Fecha Apertura
+                </span>
+                <span className="text-[8px] text-white/40 font-mono">
+                  {anioApertura}-{mesApertura}-{diaApertura}
+                </span>
+              </div>
+              <div className="grid grid-cols-12 gap-1.5 pt-0.5">
+                <div className="col-span-4 space-y-0.5">
+                  <label className="text-[7px] font-bold text-white/40 uppercase">Año Apert.</label>
+                  <input
+                    type="text"
+                    maxLength={4}
+                    value={anioApertura}
+                    onChange={(e) => setAnioApertura(normalizeYearInput(e.target.value))}
+                    className="w-full bg-white/5 border border-white/10 rounded-lg py-1 text-xs text-center text-white font-bold outline-none focus:border-indigo-500 font-mono"
+                    placeholder="Año"
+                  />
+                </div>
+                <div className="col-span-4 space-y-0.5">
+                  <label className="text-[7px] font-bold text-white/40 uppercase">Mes Apert.</label>
+                  <select
+                    value={mesApertura}
+                    onChange={(e) => setMesApertura(e.target.value)}
+                    className="w-full bg-neutral-900 text-white border border-white/10 rounded-lg py-1 text-xs outline-none"
+                  >
+                    {["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"].map((m) => (
+                      <option key={m} value={m} className="bg-neutral-900 text-white">{m}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="col-span-4 space-y-0.5">
+                  <label className="text-[7px] font-bold text-white/40 uppercase">Día Apert.</label>
+                  <select
+                    value={diaApertura}
+                    onChange={(e) => setDiaApertura(e.target.value)}
+                    className="w-full bg-neutral-900 text-white border border-white/10 rounded-lg py-1 text-xs outline-none"
+                  >
+                    {dias.map((d) => (
+                      <option key={d} value={d} className="bg-neutral-900 text-white">{d}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* CARD 2: FECHA DE CIERRE (RIGE EXPEDIENTE Y SECUENCIA) */}
+            <div className="bg-indigo-950/20 p-2.5 rounded-xl border border-indigo-500/30 space-y-1 relative">
+              <div className="flex items-center justify-between pb-1 border-b border-indigo-500/20">
+                <span className="text-[9px] font-bold text-indigo-300 uppercase flex items-center gap-1">
+                  🏁 Fecha Cierre <span className="text-[7px] bg-indigo-500/20 px-1 py-0.2 rounded text-indigo-200 font-semibold">(Rige Secuencia)</span>
+                </span>
+                <span className="text-[8px] text-indigo-300/80 font-mono font-bold">
+                  {anioCierre}-{mesCierre}-{diaCierre}
+                </span>
+              </div>
+              <div className="grid grid-cols-12 gap-1.5 pt-0.5">
+                <div className="col-span-4 space-y-0.5">
+                  <label className="text-[7px] font-bold text-indigo-300 uppercase">Año Cierre</label>
+                  <input
+                    type="text"
+                    maxLength={4}
+                    value={anioCierre}
+                    onChange={(e) => handleYearCierreChange(e.target.value)}
+                    className="w-full bg-white/5 border border-indigo-500/30 rounded-lg py-1 text-xs text-center text-white font-bold outline-none focus:border-indigo-400 font-mono"
+                    placeholder="Año"
+                  />
+                </div>
+                <div className="col-span-4 space-y-0.5">
+                  <label className="text-[7px] font-bold text-indigo-300 uppercase">Mes Cierre</label>
+                  <select
+                    value={mesCierre}
+                    onChange={(e) => setMesCierre(e.target.value)}
+                    className="w-full bg-neutral-900 text-white border border-indigo-500/20 rounded-lg py-1 text-xs outline-none"
+                  >
+                    {["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"].map((m) => (
+                      <option key={m} value={m} className="bg-neutral-900 text-white">{m}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="col-span-4 space-y-0.5">
+                  <label className="text-[7px] font-bold text-indigo-300 uppercase">Día Cierre</label>
+                  <select
+                    value={diaCierre}
+                    onChange={(e) => setDiaCierre(e.target.value)}
+                    className="w-full bg-neutral-900 text-white border border-indigo-500/20 rounded-lg py-1 text-xs outline-none"
+                  >
+                    {dias.map((d) => (
+                      <option key={d} value={d} className="bg-neutral-900 text-white">{d}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* CÓDIGO PP (RECALCULADO CON FECHA DE CIERRE) */}
           <div className="space-y-0.5">
             <label className="text-[8px] font-bold text-white/30 uppercase">Código PP (12 dígitos finales)</label>
             <div className="flex items-center bg-white/5 border border-white/10 rounded-xl overflow-hidden h-9 focus-within:border-indigo-500">
-              <span className="bg-white/10 px-3 h-full flex items-center text-[10px] font-mono text-indigo-300 font-bold">
-                PP-{normalizeYearInput(anio)}{mesProceso}{diaCierre.padStart(2, "0")}
+              <span className="bg-white/10 px-3 h-full flex items-center text-[10px] font-mono text-indigo-300 font-bold whitespace-nowrap">
+                PP-{normalizeYearInput(anioCierre)}{mesCierre}{diaCierre.padStart(2, "0")}
               </span>
               <input
                 required
@@ -507,6 +666,32 @@ export default function EditPartes({ sourceTable = "PARTES" }: EditPartesProps) 
         </form>
       ) : (
         <div className="bg-white/5 rounded-3xl p-6 border border-white/5 space-y-4">
+          {/* BARRA DE HERRAMIENTAS: ACOMODAR SECUENCIA POR FECHA DE CIERRE */}
+          <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-black/40 rounded-2xl border border-indigo-500/20">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-indigo-300 font-bold uppercase flex items-center gap-1">
+                ⚡ Acomodar Secuencia por Fecha de Cierre:
+              </span>
+              <input
+                type="text"
+                maxLength={4}
+                value={anioAcomodar}
+                onChange={(e) => setAnioAcomodar(normalizeYearInput(e.target.value))}
+                className="w-16 bg-white/5 border border-white/10 rounded-lg py-1 text-xs text-center text-white font-bold font-mono outline-none focus:border-indigo-400"
+                placeholder="Año"
+              />
+              <button
+                type="button"
+                onClick={() => void handleAcomodarSecuencia(anioAcomodar)}
+                disabled={isAcomodando}
+                className="px-3 py-1.5 bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-500/30 rounded-lg text-[9px] font-bold uppercase transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
+              >
+                {isAcomodando ? "Acomodando..." : "Reordenar Secuencia del Año"}
+              </button>
+            </div>
+            <span className="text-[9px] text-white/30 italic">Ordena correlativamente (0001-YYYY) según Fecha de Cierre</span>
+          </div>
+
           <input
             type="text"
             value={busqueda}

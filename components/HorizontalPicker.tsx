@@ -63,7 +63,7 @@ export default function HorizontalPicker({
         type="button"
         disabled={disabled}
         onClick={() => setIsOpen((prev) => !prev)}
-        className={`w-full bg-neutral-900 text-white border border-white/10 rounded-lg py-1 px-2 text-xs font-bold flex items-center justify-between hover:border-indigo-500/50 focus:border-indigo-500 transition-all cursor-pointer select-none ${
+        className={`w-full bg-neutral-900 text-white border border-white/10 rounded-lg h-7 px-2 text-xs font-bold flex items-center justify-between hover:border-indigo-500/50 focus:border-indigo-500 transition-all cursor-pointer select-none ${
           isOpen ? "border-indigo-500 ring-1 ring-indigo-500/40" : ""
         } ${className}`}
         title={title}

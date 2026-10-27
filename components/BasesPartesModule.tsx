@@ -50,12 +50,19 @@ const parseExpediente = (value: unknown): { seq: number; year: number } => {
 };
 
 const normalizeDate = (value: string): string => {
-  const raw = value.trim();
+  const raw = String(value || "").trim();
   if (!raw) return "";
-  const normalized = raw.replace(/\//g, "-");
-  const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!match) return "";
-  return `${match[1]}-${match[2]}-${match[3]}`;
+  const firstChunk = raw.split(" ")[0].split("T")[0];
+  const normalized = firstChunk.replace(/\//g, "-");
+  const matchIso = normalized.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (matchIso) {
+    return `${matchIso[1]}-${matchIso[2].padStart(2, "0")}-${matchIso[3].padStart(2, "0")}`;
+  }
+  const matchDmy = normalized.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+  if (matchDmy) {
+    return `${matchDmy[3]}-${matchDmy[2].padStart(2, "0")}-${matchDmy[1].padStart(2, "0")}`;
+  }
+  return "";
 };
 
 const isoDateToExcelSerial = (value: string): number | null => {
@@ -501,13 +508,25 @@ export default function BasesPartesModule({ sourceTable, title }: BasesPartesMod
       const rowsByYear = new Map<string, GenericRow[]>();
 
       allRows.forEach((row) => {
-        const expParsed = parseExpediente(row.expediente);
-        let year = expParsed.year !== Number.MAX_SAFE_INTEGER ? String(expParsed.year) : "";
-        if (!year) {
-          const cierreNorm = normalizeDate(toText(row.fecha_cierre));
-          year = cierreNorm.split("-")[0] || "";
+        // La secuencia y el año se determinan estrictamente por la fecha de cierre
+        let year = "";
+        const cierreNorm = normalizeDate(toText(row.fecha_cierre));
+        if (cierreNorm) {
+          year = cierreNorm.split("-")[0];
         }
         if (!year) {
+          const aperNorm = normalizeDate(toText(row.fecha_apertura));
+          if (aperNorm) {
+            year = aperNorm.split("-")[0];
+          }
+        }
+        if (!year) {
+          const expParsed = parseExpediente(row.expediente);
+          if (expParsed.year !== Number.MAX_SAFE_INTEGER) {
+            year = String(expParsed.year);
+          }
+        }
+        if (!year || year.length !== 4) {
           year = String(new Date().getFullYear());
         }
 
@@ -517,10 +536,10 @@ export default function BasesPartesModule({ sourceTable, title }: BasesPartesMod
         rowsByYear.get(year)!.push(row);
       });
 
-      const updatesToRun: Array<{ id: string; nuevoExpediente: string }> = [];
+      const updatesToRun: Array<{ id: string; year: string; oldExpediente: string; nuevoExpediente: string }> = [];
 
       rowsByYear.forEach((yearRows, year) => {
-        // Orden establecido por la fecha de cierre
+        // Orden estrictamente establecido por la fecha de cierre
         yearRows.sort((a, b) => {
           const fechaA = normalizeDate(toText(a.fecha_cierre));
           const fechaB = normalizeDate(toText(b.fecha_cierre));
@@ -532,10 +551,15 @@ export default function BasesPartesModule({ sourceTable, title }: BasesPartesMod
           if (aperA !== aperB) {
             return aperA.localeCompare(aperB);
           }
+          const crA = toText(a.created_at);
+          const crB = toText(b.created_at);
+          if (crA !== crB) {
+            return crA.localeCompare(crB);
+          }
           return toText(a.id).localeCompare(toText(b.id));
         });
 
-        // Reemplazar los valores por el orden correspondiente secuencial
+        // Reemplazar los valores por el orden correspondiente secuencial correlativo
         yearRows.forEach((row, idx) => {
           const seq = idx + 1;
           const nuevoExpediente = `${String(seq).padStart(4, "0")}-${year}`;
@@ -544,6 +568,8 @@ export default function BasesPartesModule({ sourceTable, title }: BasesPartesMod
           if (actualExpediente !== nuevoExpediente) {
             updatesToRun.push({
               id: toText(row.id),
+              year,
+              oldExpediente: actualExpediente,
               nuevoExpediente,
             });
             row.expediente = nuevoExpediente;
@@ -552,6 +578,21 @@ export default function BasesPartesModule({ sourceTable, title }: BasesPartesMod
       });
 
       if (updatesToRun.length > 0) {
+        // Etapa 1: Asignar valores temporales para evitar conflicto o colisión de claves únicas
+        for (const item of updatesToRun) {
+          const tempExp = `TMP-${item.id.replace(/\D/g, "").slice(0, 8) || Math.random().toString(36).slice(2, 8)}-${item.year}`;
+          const { error: tmpErr } = await supabase
+            .from(sourceTable)
+            .update({ expediente: tempExp })
+            .eq("id", item.id);
+
+          if (tmpErr) {
+            console.warn("Advertencia en paso temporal:", tmpErr.message);
+          }
+        }
+
+        // Etapa 2: Asignar el nuevo expediente secuencial final
+        let successCount = 0;
         for (const item of updatesToRun) {
           const { error: updErr } = await supabase
             .from(sourceTable)
@@ -560,15 +601,18 @@ export default function BasesPartesModule({ sourceTable, title }: BasesPartesMod
 
           if (updErr) {
             console.error("Error actualizando expediente:", updErr);
+          } else {
+            successCount++;
           }
         }
+
         setNotification({
-          message: `Matriz actualizada con éxito: ${updatesToRun.length} expedientes renumerados secuencialmente.`,
+          message: `Matriz actualizada con éxito: ${successCount} expedientes renumerados secuencialmente por Fecha de Cierre.`,
           type: "success",
         });
       } else {
         setNotification({
-          message: "La matriz ya se encuentra con la numeración secuencial correspondiente.",
+          message: "La matriz ya se encuentra con la numeración secuencial correspondiente según la Fecha de Cierre.",
           type: "info",
         });
       }
