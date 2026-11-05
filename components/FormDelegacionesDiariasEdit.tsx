@@ -108,7 +108,18 @@ const MONTH_OPTIONS = [
   "NOVIEMBRE",
   "DICIEMBRE",
 ];
-const COD_DISTRITO_OPTIONS = Array.from({ length: 10 }, (_, index) => String(index + 1).padStart(2, "0"));
+const COD_DISTRITO_OPTIONS = [
+  { codigo: "01", nombre: "SUR - DMG" },
+  { codigo: "02", nombre: "ESTEROS" },
+  { codigo: "03", nombre: "9 DE OCTUBRE" },
+  { codigo: "04", nombre: "PORTETE" },
+  { codigo: "05", nombre: "MODELO" },
+  { codigo: "06", nombre: "FLORIDA" },
+  { codigo: "07", nombre: "PASCUALES" },
+  { codigo: "08", nombre: "NUEVA PROSPERINA" },
+  { codigo: "09", nombre: "CEIBOS" },
+  { codigo: "10", nombre: "PROGRESO" },
+];
 
 type FieldConfig = {
   key: keyof FormState;
@@ -1160,7 +1171,7 @@ export default function FormDelegacionesDiarias({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-[7.5rem_13.5rem_6.5rem_7rem_6rem_4.5rem_minmax(12rem,1fr)] gap-2 items-start">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-[7.5rem_13.5rem_12rem_8rem_6rem_4.5rem_minmax(12rem,1fr)] gap-2 items-start">
         <div className="space-y-1">
           <label className="text-[10px] font-bold text-white/40 uppercase">Mes ingreso</label>
           <select
@@ -1218,13 +1229,13 @@ export default function FormDelegacionesDiarias({
             <select
               value={codDistritoSufijo}
               onChange={(e) => handleCodDistritoChange(e.target.value)}
-              className="flex-1 bg-neutral-900 border-l border-white/10 px-1 py-2.5 text-xs text-white outline-none"
+              className="flex-1 min-w-0 bg-neutral-900 border-l border-white/10 px-1 py-2.5 text-xs text-white outline-none truncate"
               required
             >
-                <option value="" className="text-black bg-white">--</option>
-              {COD_DISTRITO_OPTIONS.map((codigo) => (
-                  <option key={codigo} value={codigo} className="text-black bg-white">
-                  {codigo}
+              <option value="" className="text-black bg-white">--</option>
+              {COD_DISTRITO_OPTIONS.map((item) => (
+                <option key={item.codigo} value={item.codigo} className="text-black bg-white">
+                  {item.codigo} ({item.nombre})
                 </option>
               ))}
             </select>
