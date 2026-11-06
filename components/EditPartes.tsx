@@ -256,7 +256,11 @@ export default function EditPartes({ sourceTable = "PARTES" }: EditPartesProps) 
     }
 
     const anioAp = normalizeYearInput(anioApertura) || anioCi;
-    const codigoPPFull = `PP-${anioCi}${mesCierre}${diaCierre.padStart(2, "0")}${ppUltimos10}`;
+    const esFechasSeparadas = anioAp !== anioCi || mesApertura !== mesCierre || diaApertura !== diaCierre;
+    const anioPPCodigo = esFechasSeparadas ? anioAp : anioCi;
+    const mesPPCodigo = esFechasSeparadas ? mesApertura : mesCierre;
+    const diaPPCodigo = esFechasSeparadas ? diaApertura : diaCierre;
+    const codigoPPFull = `PP-${anioPPCodigo}${mesPPCodigo}${diaPPCodigo.padStart(2, "0")}${ppUltimos10}`;
     const descFinal = formatDescripcionParteCompleta(codigoPPFull, detenidos, delito);
 
     const expFinal = expedienteEditado.trim() || String(editando.expediente || "");
@@ -394,6 +398,10 @@ export default function EditPartes({ sourceTable = "PARTES" }: EditPartesProps) 
   };
 
   const dias = Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, "0"));
+  const esFechasSeparadas = anioApertura !== anioCierre || mesApertura !== mesCierre || diaApertura !== diaCierre;
+  const anioPPDisplay = esFechasSeparadas ? (normalizeYearInput(anioApertura) || anioApertura || "----") : (normalizeYearInput(anioCierre) || anioCierre || "----");
+  const mesPPDisplay = esFechasSeparadas ? mesApertura : mesCierre;
+  const diaPPDisplay = esFechasSeparadas ? diaApertura : diaCierre;
 
   return (
     <>
@@ -553,7 +561,7 @@ export default function EditPartes({ sourceTable = "PARTES" }: EditPartesProps) 
             <label className="text-[8px] font-bold text-white/30 uppercase">Código PP (12 dígitos finales)</label>
             <div className="flex items-center bg-white/5 border border-white/10 rounded-xl overflow-hidden h-9 focus-within:border-indigo-500">
               <span className="bg-white/10 px-3 h-full flex items-center text-[10px] font-mono text-indigo-300 font-bold whitespace-nowrap">
-                PP-{normalizeYearInput(anioCierre)}{mesCierre}{diaCierre.padStart(2, "0")}
+                PP-{anioPPDisplay}{mesPPDisplay}{diaPPDisplay.padStart(2, "0")}
               </span>
               <input
                 required

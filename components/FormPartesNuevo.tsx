@@ -294,6 +294,11 @@ export default function FormPartesNuevo() {
     }
   };
 
+  const usarFechaAperturaParaPP = mostrarFechasSeparadas || modalidad !== "default";
+  const anioPPActual = usarFechaAperturaParaPP ? (anioApertura || "----") : (anioCierre || "----");
+  const mesPPActual = usarFechaAperturaParaPP ? mesApertura : mesCierre;
+  const diaPPActual = usarFechaAperturaParaPP ? diaApertura : diaCierre;
+
   useEffect(() => {
     if (!ppUltimos10 || ppUltimos10.length < 4) {
       const timer = setTimeout(() => setPpUnicidad("idle"), 0);
@@ -321,10 +326,13 @@ export default function FormPartesNuevo() {
     }, 500);
 
     return () => clearTimeout(delayDebounce);
-  }, [anioCierre, mesCierre, diaCierre, ppUltimos10]);
+  }, [anioCierre, mesCierre, diaCierre, anioApertura, mesApertura, diaApertura, mostrarFechasSeparadas, modalidad, ppUltimos10]);
 
   useEffect(() => {
-    const anioNorm = normalizeYearInput(anioCierre);
+    const targetAnio = usarFechaAperturaParaPP ? anioApertura : anioCierre;
+    const targetMes = usarFechaAperturaParaPP ? mesApertura : mesCierre;
+    const targetDia = usarFechaAperturaParaPP ? diaApertura : diaCierre;
+    const anioNorm = normalizeYearInput(targetAnio);
     const cleanedDigits = ppUltimos10.replace(/\D/g, "");
     // Consultar automáticamente a partir del 10mo dígito (acepta de 10 a 12 dígitos, sin contar el prefijo PP-YYYYMMDD)
     if (anioNorm.length !== 4 || cleanedDigits.length < 10) {
@@ -333,7 +341,7 @@ export default function FormPartesNuevo() {
       return;
     }
 
-    const fullOficio = `${anioNorm}${mesCierre}${diaCierre.padStart(2, "0")}${cleanedDigits}`;
+    const fullOficio = `${anioNorm}${targetMes}${targetDia.padStart(2, "0")}${cleanedDigits}`;
 
     const timer = setTimeout(async () => {
       setFiscaliaStatus("loading");
@@ -374,7 +382,7 @@ export default function FormPartesNuevo() {
     }, 700);
 
     return () => clearTimeout(timer);
-  }, [anioCierre, mesCierre, diaCierre, ppUltimos10]);
+  }, [anioCierre, mesCierre, diaCierre, anioApertura, mesApertura, diaApertura, mostrarFechasSeparadas, modalidad, ppUltimos10]);
 
   const handleAutofillFiscalia = () => {
     if (!fiscaliaResult) return;
@@ -547,7 +555,10 @@ export default function FormPartesNuevo() {
     }
 
     const expedienteFormateado = formatExpediente(numeroExpedienteFinal, anioRegistro);
-    const codigoPPFull = `PP-${anioRegistro}${mesCierre}${diaCierre.padStart(2, "0")}${ppUltimos10}`;
+    const anioPPCodigo = usarFechaAperturaParaPP ? anioAp : anioRegistro;
+    const mesPPCodigo = usarFechaAperturaParaPP ? mesApertura : mesCierre;
+    const diaPPCodigo = usarFechaAperturaParaPP ? diaApertura : diaCierre;
+    const codigoPPFull = `PP-${anioPPCodigo}${mesPPCodigo}${diaPPCodigo.padStart(2, "0")}${ppUltimos10}`;
     const descFinal = generarDescripcionParte(codigoPPFull, modalidad, {
       detenidos,
       delito,
@@ -596,7 +607,7 @@ export default function FormPartesNuevo() {
 
   const dias = Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, "0"));
 
-  const codigoPPActual = `PP-${anioCierre || "----"}${mesCierre}${diaCierre.padStart(2, "0")}${ppUltimos10 || "0000000000"}`;
+  const codigoPPActual = `PP-${anioPPActual}${mesPPActual}${diaPPActual.padStart(2, "0")}${ppUltimos10 || "0000000000"}`;
   const descripcionPreview = generarDescripcionParte(codigoPPActual, modalidad, {
     detenidos,
     delito,
@@ -859,7 +870,7 @@ export default function FormPartesNuevo() {
                 "border-white/10 focus-within:border-indigo-500"
               }`}>
                 <span className="bg-white/10 px-2.5 h-full flex items-center text-[10px] font-mono text-white/40 select-none whitespace-nowrap">
-                  PP-{anioCierre || "----"}{mesCierre}{diaCierre.padStart(2, "0")}
+                  PP-{anioPPActual}{mesPPActual}{diaPPActual.padStart(2, "0")}
                 </span>
                 <input
                   required
