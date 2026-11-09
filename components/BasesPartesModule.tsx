@@ -5,6 +5,7 @@ import * as XLSX from "xlsx-js-style";
 import { supabase } from "@/lib/supabaseClient";
 import Notification from "./Notification";
 import { normalizeDescripcionParteExistente } from "@/lib/textFormatters";
+import { acomodarSecuenciaPorFechaCierre, sortPartesCanonical, ParteLikeRow } from "@/lib/partesSequence";
 
 type GenericRow = Record<string, string | number | null>;
 type SourceTable = "PARTES" | "partes_viejas";
@@ -215,25 +216,7 @@ const buildIsoDate = (year: string, month: string, day: string): string => {
 
 const sortRowsByFechaAndExpediente = (rows: GenericRow[]): GenericRow[] => {
   const copy = [...rows];
-
-  copy.sort((a, b) => {
-    const fechaA = normalizeDate(toText(a.fecha_cierre));
-    const fechaB = normalizeDate(toText(b.fecha_cierre));
-
-    if (fechaA !== fechaB) {
-      return fechaA.localeCompare(fechaB);
-    }
-
-    const aperA = normalizeDate(toText(a.fecha_apertura));
-    const aperB = normalizeDate(toText(b.fecha_apertura));
-
-    if (aperA !== aperB) {
-      return aperA.localeCompare(aperB);
-    }
-
-    return toText(a.id).localeCompare(toText(b.id));
-  });
-
+  copy.sort((a, b) => sortPartesCanonical(a as ParteLikeRow, b as ParteLikeRow));
   return copy;
 };
 
@@ -478,141 +461,34 @@ export default function BasesPartesModule({ sourceTable, title }: BasesPartesMod
   const ejecutarActualizacionMatriz = async () => {
     setIsUpdatingMatrix(true);
     try {
-      const allRows: GenericRow[] = [];
-      const PAGE_SIZE = 1000;
-      let from = 0;
+      // Determinar qué año(s) actualizar:
+      // Si el usuario tiene seleccionado un año en los filtros (anioFiltro o inicioYear), actualizamos ese año prioritariamente
+      // Si no, actualizamos todos los años disponibles encontrados en la tabla
+      const anioSeleccionado = (anioFiltro || inicioYear || "").trim();
+      const aniosATratar = anioSeleccionado && anioSeleccionado.length === 4
+        ? [anioSeleccionado]
+        : (aniosDisponibles.length > 0 ? aniosDisponibles : [String(new Date().getFullYear())]);
 
-      while (true) {
-        const to = from + PAGE_SIZE - 1;
-        const { data, error } = await supabase
-          .from(sourceTable)
-          .select("*")
-          .order("fecha_cierre", { ascending: true })
-          .order("id", { ascending: true })
-          .range(from, to);
+      let totalActualizados = 0;
+      let totalFilas = 0;
 
-        if (error) throw new Error(error.message);
-        const chunk = (data || []) as GenericRow[];
-        allRows.push(...chunk);
-        if (chunk.length < PAGE_SIZE) break;
-        from += PAGE_SIZE;
+      for (const yr of aniosATratar) {
+        const res = await acomodarSecuenciaPorFechaCierre(sourceTable, yr);
+        if (!res.success && res.error) {
+          throw new Error(`Error en año ${yr}: ${res.error}`);
+        }
+        totalActualizados += res.updatedCount;
+        totalFilas += res.total;
       }
 
-      if (allRows.length === 0) {
-        setNotification({ message: "No hay registros para actualizar.", type: "info" });
-        setIsUpdatingMatrix(false);
-        setShowPromptModal(false);
-        return;
-      }
-
-      const rowsByYear = new Map<string, GenericRow[]>();
-
-      allRows.forEach((row) => {
-        // La secuencia y el año se determinan estrictamente por la fecha de cierre
-        let year = "";
-        const cierreNorm = normalizeDate(toText(row.fecha_cierre));
-        if (cierreNorm) {
-          year = cierreNorm.split("-")[0];
-        }
-        if (!year) {
-          const aperNorm = normalizeDate(toText(row.fecha_apertura));
-          if (aperNorm) {
-            year = aperNorm.split("-")[0];
-          }
-        }
-        if (!year) {
-          const expParsed = parseExpediente(row.expediente);
-          if (expParsed.year !== Number.MAX_SAFE_INTEGER) {
-            year = String(expParsed.year);
-          }
-        }
-        if (!year || year.length !== 4) {
-          year = String(new Date().getFullYear());
-        }
-
-        if (!rowsByYear.has(year)) {
-          rowsByYear.set(year, []);
-        }
-        rowsByYear.get(year)!.push(row);
-      });
-
-      const updatesToRun: Array<{ id: string; year: string; oldExpediente: string; nuevoExpediente: string }> = [];
-
-      rowsByYear.forEach((yearRows, year) => {
-        // Orden estrictamente establecido por la fecha de cierre
-        yearRows.sort((a, b) => {
-          const fechaA = normalizeDate(toText(a.fecha_cierre));
-          const fechaB = normalizeDate(toText(b.fecha_cierre));
-          if (fechaA !== fechaB) {
-            return fechaA.localeCompare(fechaB);
-          }
-          const aperA = normalizeDate(toText(a.fecha_apertura));
-          const aperB = normalizeDate(toText(b.fecha_apertura));
-          if (aperA !== aperB) {
-            return aperA.localeCompare(aperB);
-          }
-          const crA = toText(a.created_at);
-          const crB = toText(b.created_at);
-          if (crA !== crB) {
-            return crA.localeCompare(crB);
-          }
-          return toText(a.id).localeCompare(toText(b.id));
-        });
-
-        // Reemplazar los valores por el orden correspondiente secuencial correlativo
-        yearRows.forEach((row, idx) => {
-          const seq = idx + 1;
-          const nuevoExpediente = `${String(seq).padStart(4, "0")}-${year}`;
-          const actualExpediente = toText(row.expediente).trim();
-
-          if (actualExpediente !== nuevoExpediente) {
-            updatesToRun.push({
-              id: toText(row.id),
-              year,
-              oldExpediente: actualExpediente,
-              nuevoExpediente,
-            });
-            row.expediente = nuevoExpediente;
-          }
-        });
-      });
-
-      if (updatesToRun.length > 0) {
-        // Etapa 1: Asignar valores temporales para evitar conflicto o colisión de claves únicas
-        for (const item of updatesToRun) {
-          const tempExp = `TMP-${item.id.replace(/\D/g, "").slice(0, 8) || Math.random().toString(36).slice(2, 8)}-${item.year}`;
-          const { error: tmpErr } = await supabase
-            .from(sourceTable)
-            .update({ expediente: tempExp })
-            .eq("id", item.id);
-
-          if (tmpErr) {
-            console.warn("Advertencia en paso temporal:", tmpErr.message);
-          }
-        }
-
-        // Etapa 2: Asignar el nuevo expediente secuencial final
-        let successCount = 0;
-        for (const item of updatesToRun) {
-          const { error: updErr } = await supabase
-            .from(sourceTable)
-            .update({ expediente: item.nuevoExpediente })
-            .eq("id", item.id);
-
-          if (updErr) {
-            console.error("Error actualizando expediente:", updErr);
-          } else {
-            successCount++;
-          }
-        }
-
+      if (totalActualizados > 0) {
         setNotification({
-          message: `Matriz actualizada con éxito: ${successCount} expedientes renumerados secuencialmente por Fecha de Cierre.`,
+          message: `Matriz actualizada con éxito: ${totalActualizados} expedientes renumerados secuencialmente por Fecha de Cierre.`,
           type: "success",
         });
       } else {
         setNotification({
-          message: "La matriz ya se encuentra con la numeración secuencial correspondiente según la Fecha de Cierre.",
+          message: `La matriz (${aniosATratar.join(", ")}) ya se encuentra con la numeración secuencial correspondiente según la Fecha de Cierre.`,
           type: "info",
         });
       }

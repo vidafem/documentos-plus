@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabaseClient";
 import * as XLSX from "xlsx-js-style";
 import Notification from "./Notification";
 import { normalizeDescripcionParteExistente } from "@/lib/textFormatters";
+import { sortPartesCanonical, ParteLikeRow } from "@/lib/partesSequence";
 
 type ParteRegistro = {
   id: string;
@@ -147,12 +148,15 @@ export default function DownloadPartes({ sourceTable = "PARTES" }: DownloadParte
   }, [sourceTable]);
 
   const fetchRegistros = useCallback(async () => {
-    let query = supabase.from(sourceTable).select("*").order("created_at", { ascending: false });
+    let query = supabase.from(sourceTable).select("*").order("fecha_cierre", { ascending: true });
     if (filtroMes) {
       query = query.gte("fecha_cierre", `${filtroMes}-01`).lte("fecha_cierre", `${filtroMes}-31`);
     }
     const { data } = await query;
-    return (data || []) as ParteRegistro[];
+    const sorted = [...((data || []) as ParteRegistro[])].sort((a, b) =>
+      sortPartesCanonical(a as unknown as ParteLikeRow, b as unknown as ParteLikeRow)
+    );
+    return sorted;
   }, [filtroMes, sourceTable]);
 
   const recargarRegistros = async () => {
@@ -181,7 +185,10 @@ export default function DownloadPartes({ sourceTable = "PARTES" }: DownloadParte
       setNotification({ message: "No hay registros para exportar", type: "info" });
       return;
     }
-    const dataToExport = selectedIds.length > 0 ? registros.filter((r) => selectedIds.includes(r.id)) : registros;
+    const rawToExport = selectedIds.length > 0 ? registros.filter((r) => selectedIds.includes(r.id)) : registros;
+    const dataToExport = [...rawToExport].sort((a, b) =>
+      sortPartesCanonical(a as unknown as ParteLikeRow, b as unknown as ParteLikeRow)
+    );
 
     const excelData = dataToExport.map((item) => ({
       serie: item.serie || "",

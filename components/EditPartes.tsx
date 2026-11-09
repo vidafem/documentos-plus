@@ -212,7 +212,7 @@ export default function EditPartes({ sourceTable = "PARTES" }: EditPartesProps) 
     const textarea = e.target;
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
-    
+
     // Convierte en tiempo real: primera letra de cada palabra en mayúscula, resto minúscula
     const formatted = toTitleCaseWords(textarea.value);
     setDetenidos(formatted);
@@ -657,9 +657,8 @@ export default function EditPartes({ sourceTable = "PARTES" }: EditPartesProps) 
             <button
               type="submit"
               disabled={isLoading}
-              className={`flex-1 py-3 rounded-xl font-bold text-xs uppercase shadow-2xl transition-all active:scale-95 flex items-center justify-center gap-2 ${
-                isLoading ? "bg-white/20 text-white/50 cursor-wait" : "bg-indigo-600 hover:bg-indigo-500 text-white"
-              }`}
+              className={`flex-1 py-3 rounded-xl font-bold text-xs uppercase shadow-2xl transition-all active:scale-95 flex items-center justify-center gap-2 ${isLoading ? "bg-white/20 text-white/50 cursor-wait" : "bg-indigo-600 hover:bg-indigo-500 text-white"
+                }`}
             >
               {isLoading ? "Guardando..." : "Guardar Cambios"}
             </button>
@@ -731,11 +730,10 @@ export default function EditPartes({ sourceTable = "PARTES" }: EditPartesProps) 
                   <div className="flex gap-2 shrink-0">
                     <button
                       onClick={() => void startEdit(item)}
-                      className={`px-3 py-2 rounded-lg text-[9px] font-bold uppercase transition-all ${
-                        estaBloqueado
+                      className={`px-3 py-2 rounded-lg text-[9px] font-bold uppercase transition-all ${estaBloqueado
                           ? "bg-amber-500/10 text-amber-300 border border-amber-500/30 hover:bg-amber-500/20"
                           : "bg-white/10 hover:bg-white/20 text-white"
-                      }`}
+                        }`}
                       title={estaBloqueado ? "Este registro está abierto por otro usuario" : "Editar"}
                     >
                       {estaBloqueado ? "🔒 Ocupado" : "Editar"}
